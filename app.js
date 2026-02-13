@@ -1,489 +1,483 @@
-/* 自建聽書書庫（公開 / 無登入）
- * - 書庫首頁：讀取 data/library.json
- * - 書籍頁：讀取 bookJsonPath 的章節清單
- * - 播放頁：HTML5 audio 串流、倍速、上一章/下一章、結束自動播下一章
- * - 續聽進度：本機 localStorage（每本書每章記到秒）
- * - 分享連結：hash route #/book/{id}, #/listen/{bookId}/{chapterId}
- */
-
 const $ = (id) => document.getElementById(id);
 
 const els = {
-  viewLibrary: $("viewLibrary"),
-  viewBook: $("viewBook"),
-  viewListen: $("viewListen"),
-
-  goHome: $("goHome"),
-  btnInstall: $("btnInstall"),
-  btnClearProgress: $("btnClearProgress"),
-
-  searchInput: $("searchInput"),
-  libraryGrid: $("libraryGrid"),
-  libraryEmpty: $("libraryEmpty"),
-
-  btnBackToLibrary: $("btnBackToLibrary"),
-  btnShareBook: $("btnShareBook"),
-  bookCover: $("bookCover"),
-  bookTitle: $("bookTitle"),
-  bookAuthor: $("bookAuthor"),
-  bookLicense: $("bookLicense"),
-  bookDesc: $("bookDesc"),
-  bookSource: $("bookSource"),
-  bookPDF: $("bookPDF"),
+  text: $("text"),
+  btnParse: $("btnParse"),
+  btnPlay: $("btnPlay"),
+  btnPlayCursor: $("btnPlayCursor"),
+  btnPause: $("btnPause"),
   btnResume: $("btnResume"),
-  chapterList: $("chapterList"),
+  btnStop: $("btnStop"),
+  btnClear: $("btnClear"),
+  btnCopyShare: $("btnCopyShare"),
+  status: $("status"),
+  metrics: $("metrics"),
+  segments: $("segments"),
+  chkAutoScroll: $("chkAutoScroll"),
 
-  btnBackToBook: $("btnBackToBook"),
-  btnShareChapter: $("btnShareChapter"),
-  listenBook: $("listenBook"),
-  listenTitle: $("listenTitle"),
-  listenMeta: $("listenMeta"),
+  voice: $("voice"),
+  rate: $("rate"),
+  rateVal: $("rateVal"),
+  vol: $("vol"),
+  volVal: $("volVal"),
+  pitch: $("pitch"),
+  pitchVal: $("pitchVal"),
+  langHint: $("langHint"),
 
-  audio: $("audio"),
-  btnPrevChapter: $("btnPrevChapter"),
-  btnNextChapter: $("btnNextChapter"),
-  speedSelect: $("speedSelect"),
-  downloadLink: $("downloadLink"),
-  playStatus: $("playStatus"),
+  progress: $("progress"),
+  where: $("where"),
 };
 
-const STORAGE_KEY = "library_player_v1";
+let currentFile = ""; // 目前載入的 TXT 檔案路徑（用於複製分享連結）
+let segs = [];        // 分段結果：{text,start,end}
+let currentIndex = 0;
 
-let deferredPrompt = null;
+let isPlaying = false;
+let isPaused = false;
+let utter = null;
 
-const state = {
-  library: null,     // library.json
-  booksIndex: new Map(), // id -> book item
-  currentBook: null, // book.json
-  currentBookItem: null, // from library
-  currentChapterIndex: 0,
-  search: "",
-  prefs: {
-    speed: 1.0
-  },
-  progress: {
-    // [bookId]: { chapterId, timeSec, updatedAt }
+function setStatus(msg) { els.status.textContent = msg; }
+
+function setButtons() {
+  els.btnPause.disabled = !isPlaying || isPaused;
+  els.btnResume.disabled = !isPlaying || !isPaused;
+  els.btnStop.disabled = !isPlaying && !isPaused;
+  els.btnPlay.disabled = isPlaying && !isPaused;
+  els.btnPlayCursor.disabled = isPlaying && !isPaused;
+}
+
+function updateMetrics() {
+  const t = els.text.value || "";
+  els.metrics.textContent = `字數：${t.length}｜段落：${segs.length || 0}`;
+}
+
+function updateProgress() {
+  els.progress.textContent = `${Math.min(currentIndex + (isPlaying ? 1 : 0), segs.length)} / ${segs.length}`;
+  if (!segs.length) { els.where.textContent = "—"; return; }
+  const s = segs[Math.min(currentIndex, segs.length - 1)];
+  els.where.textContent = s ? `字元範圍：${s.start}–${s.end}` : "—";
+}
+
+function scrollActiveIntoView() {
+  if (!els.chkAutoScroll.checked) return;
+  const active = els.segments.querySelector(".seg.active");
+  if (!active) return;
+  active.scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
+function highlightActive() {
+  const nodes = els.segments.querySelectorAll(".seg");
+  nodes.forEach(n => n.classList.remove("active"));
+  const active = els.segments.querySelector(`.seg[data-idx="${currentIndex}"]`);
+  if (active) active.classList.add("active");
+  scrollActiveIntoView();
+}
+
+/* ---------------- Voice handling ---------------- */
+function getVoices() {
+  return window.speechSynthesis?.getVoices?.() || [];
+}
+
+function scoreVoice(v, langHint) {
+  const name = (v.name || "").toLowerCase();
+  const lang = (v.lang || "").toLowerCase();
+  const hint = (langHint || "").toLowerCase();
+
+  let s = 0;
+  if (hint && lang === hint) s += 80;
+  if (hint && lang.startsWith(hint.split("-")[0])) s += 40;
+
+  if (lang.startsWith("zh-cn")) s += 60;
+  if (lang.includes("cmn")) s += 55;
+  if (lang.startsWith("zh")) s += 25;
+
+  if (name.includes("mandarin") || name.includes("putonghua") || name.includes("普通")) s += 40;
+  if (name.includes("enhanced") || name.includes("premium") || name.includes("neural")) s += 8;
+
+  return s;
+}
+
+function populateVoices() {
+  const voices = getVoices();
+  els.voice.innerHTML = "";
+
+  if (!voices.length) {
+    const opt = document.createElement("option");
+    opt.value = "";
+    opt.textContent = "（聲線載入中…）";
+    els.voice.appendChild(opt);
+    return;
   }
-};
 
-function saveLocal() {
-  const payload = {
-    prefs: state.prefs,
-    progress: state.progress
-  };
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+  const sorted = [...voices].sort(
+    (a, b) => scoreVoice(b, els.langHint.value) - scoreVoice(a, els.langHint.value)
+  );
+
+  for (const v of sorted) {
+    const opt = document.createElement("option");
+    opt.value = v.voiceURI;
+    opt.textContent = `${v.name} (${v.lang})`;
+    els.voice.appendChild(opt);
+  }
 }
 
-function loadLocal() {
-  const raw = localStorage.getItem(STORAGE_KEY);
-  if (!raw) return;
-  try {
-    const payload = JSON.parse(raw);
-    if (payload && typeof payload === "object") {
-      state.prefs = payload.prefs || state.prefs;
-      state.progress = payload.progress || state.progress;
+/* ---------------- Segmentation (long text) ---------------- */
+function splitTextWithOffsets(text) {
+  const normalized = String(text || "").replace(/\r\n/g, "\n");
+  const out = [];
+  const maxLen = 220; // 安全分段長度
+  const enders = new Set(["。","！","？","!","?","；",";","…","."]);
+  let start = 0;
+
+  function pushRange(s, e) {
+    const raw = normalized.slice(s, e);
+    const t = raw.trim();
+    if (!t) return;
+
+    if (t.length <= maxLen) {
+      out.push({ text: t, start: s, end: e });
+      return;
     }
-  } catch (_) {}
+
+    // 先用較柔性的分隔符（逗號/空白）切，再不行就硬切
+    const soft = /[，,、\s]+/g;
+    let last = 0, m;
+    const parts = [];
+    while ((m = soft.exec(t)) !== null) {
+      const cut = m.index + m[0].length;
+      if (cut - last >= 80) { parts.push(t.slice(last, cut)); last = cut; }
+    }
+    parts.push(t.slice(last));
+
+    for (const p of parts) {
+      const pp = p.trim();
+      if (!pp) continue;
+      if (pp.length <= maxLen) out.push({ text: pp, start: s, end: e });
+      else {
+        for (let i = 0; i < pp.length; i += maxLen) {
+          out.push({ text: pp.slice(i, i + maxLen), start: s, end: e });
+        }
+      }
+    }
+  }
+
+  for (let i = 0; i < normalized.length; i++) {
+    const ch = normalized[i];
+    if (ch === "\n") { pushRange(start, i); start = i + 1; continue; }
+    if (enders.has(ch)) { pushRange(start, i + 1); start = i + 1; }
+  }
+  pushRange(start, normalized.length);
+
+  return out;
 }
 
-async function fetchJson(path) {
-  const res = await fetch(path, { cache: "no-store" });
-  if (!res.ok) throw new Error(`Fetch failed: ${path}`);
-  return await res.json();
-}
+function renderSegments() {
+  if (!segs.length) {
+    els.segments.textContent = "尚未解析";
+    updateProgress();
+    return;
+  }
 
-function show(view) {
-  els.viewLibrary.hidden = view !== "library";
-  els.viewBook.hidden = view !== "book";
-  els.viewListen.hidden = view !== "listen";
-}
-
-function setPlayStatus(msg) {
-  els.playStatus.textContent = msg;
-}
-
-function formatTime(sec) {
-  if (!Number.isFinite(sec) || sec <= 0) return "";
-  const m = Math.floor(sec / 60);
-  const s = Math.floor(sec % 60);
-  return `${m}:${String(s).padStart(2, "0")}`;
-}
-
-function getHashParts() {
-  const hash = location.hash || "#/";
-  const clean = hash.replace(/^#\/?/, "");
-  const parts = clean.split("/").filter(Boolean);
-  return parts;
-}
-
-function setHash(path) {
-  location.hash = path.startsWith("#") ? path : `#/${path}`;
-}
-
-function copyShareLink() {
-  const url = location.href;
-  navigator.clipboard?.writeText(url).then(() => {
-    alert("已複製分享連結。");
-  }).catch(() => {
-    prompt("請手動複製連結：", url);
+  els.segments.innerHTML = "";
+  segs.forEach((s, idx) => {
+    const span = document.createElement("span");
+    span.className = "seg" + (idx === currentIndex ? " active" : "");
+    span.dataset.idx = String(idx);
+    span.textContent = s.text + (idx === segs.length - 1 ? "" : " ");
+    span.addEventListener("click", () => {
+      stop(false);
+      currentIndex = idx;
+      highlightActive();
+      updateProgress();
+      setStatus(`已跳到第 ${idx + 1} 段`);
+    });
+    els.segments.appendChild(span);
   });
+
+  scrollActiveIntoView();
 }
 
-/* ---------- Render: Library ---------- */
-function renderLibrary() {
-  show("library");
+function parse() {
+  const t = els.text.value || "";
+  segs = splitTextWithOffsets(t);
 
-  const books = (state.library?.books || []).slice();
+  if (!segs.length) {
+    currentIndex = 0;
+    setStatus("沒有可朗讀內容");
+  } else {
+    currentIndex = Math.min(currentIndex, segs.length - 1);
+    setStatus(`解析完成：共 ${segs.length} 段`);
+  }
 
-  const q = (state.search || "").trim().toLowerCase();
-  const filtered = q
-    ? books.filter(b => {
-        const hay = `${b.title} ${b.author} ${(b.tags || []).join(" ")}`.toLowerCase();
-        return hay.includes(q);
-      })
-    : books;
+  updateMetrics();
+  renderSegments();
+  updateProgress();
+}
 
-  els.libraryGrid.innerHTML = "";
-  els.libraryEmpty.hidden = filtered.length !== 0;
+/* ---------------- TTS ---------------- */
+function makeUtterance(text) {
+  const u = new SpeechSynthesisUtterance(text);
+  u.rate = Number(els.rate.value || 1);
+  u.volume = Number(els.vol.value || 1);
+  u.pitch = Number(els.pitch.value || 1);
 
-  filtered.forEach(b => {
-    const card = document.createElement("div");
-    card.className = "cardItem";
-    card.tabIndex = 0;
+  const hint = els.langHint.value;
+  if (hint) u.lang = hint;
 
-    const tags = (b.tags || []).slice(0, 6).map(t => `<span class="tag">${t}</span>`).join("");
+  const chosen = getVoices().find(v => v.voiceURI === els.voice.value);
+  if (chosen) u.voice = chosen;
 
-    card.innerHTML = `
-      <div class="cardTitle">${escapeHtml(b.title)}</div>
-      <div class="cardMeta">${escapeHtml(b.author || "")} · ${escapeHtml(b.license || "")}</div>
-      <div class="cardDesc">${escapeHtml(b.description || "")}</div>
-      <div class="tags">${tags}</div>
-    `;
+  return u;
+}
 
-    card.addEventListener("click", () => setHash(`book/${b.id}`));
-    card.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" || e.key === " ") setHash(`book/${b.id}`);
+function speakFrom(index) {
+  if (!("speechSynthesis" in window)) {
+    setStatus("此瀏覽器不支援語音朗讀，建議用 Chrome/Edge。");
+    return;
+  }
+  if (!segs.length) parse();
+  if (!segs.length) return;
+
+  currentIndex = Math.max(0, Math.min(index, segs.length - 1));
+  highlightActive();
+  updateProgress();
+
+  window.speechSynthesis.cancel();
+
+  isPlaying = true;
+  isPaused = false;
+  setButtons();
+
+  const run = () => {
+    if (currentIndex >= segs.length) {
+      isPlaying = false;
+      isPaused = false;
+      setButtons();
+      setStatus("已朗讀完畢");
+      updateProgress();
+      return;
+    }
+
+    highlightActive();
+    updateProgress();
+    setStatus(`朗讀中：第 ${currentIndex + 1} / ${segs.length} 段`);
+
+    utter = makeUtterance(segs[currentIndex].text);
+
+    utter.onend = () => {
+      if (!isPlaying) return;
+      currentIndex += 1;
+      run();
+    };
+
+    utter.onerror = () => {
+      // 跳過錯誤段落避免卡死
+      currentIndex += 1;
+      run();
+    };
+
+    window.speechSynthesis.speak(utter);
+  };
+
+  run();
+}
+
+function pause() {
+  if (!isPlaying) return;
+  window.speechSynthesis.pause();
+  isPaused = true;
+  setButtons();
+  setStatus("已暫停");
+}
+
+function resume() {
+  if (!isPlaying) return;
+  window.speechSynthesis.resume();
+  isPaused = false;
+  setButtons();
+  setStatus(`繼續朗讀：第 ${currentIndex + 1} 段`);
+}
+
+function stop(updateStatus = true) {
+  window.speechSynthesis.cancel();
+  isPlaying = false;
+  isPaused = false;
+  utter = null;
+  setButtons();
+  highlightActive();
+  updateProgress();
+  if (updateStatus) setStatus("已停止");
+}
+
+function playFromCursor() {
+  const cursor = els.text.selectionStart ?? 0;
+  if (!segs.length) parse();
+  if (!segs.length) return;
+
+  let idx = 0;
+  for (let i = 0; i < segs.length; i++) {
+    if (cursor >= segs[i].start && cursor <= segs[i].end) { idx = i; break; }
+    if (cursor > segs[i].end) idx = i;
+  }
+  speakFrom(idx);
+}
+
+/* ---------------- Load TXT & query preload ---------------- */
+async function loadTextFile(file, autoplay) {
+  try {
+    const res = await fetch(file, { cache: "no-store" });
+    if (!res.ok) { setStatus(`讀取失敗：${file}`); return; }
+
+    const text = await res.text();
+    els.text.value = text;
+    currentFile = file;
+
+    parse();
+
+    if (autoplay) {
+      // 避免瀏覽器阻擋「無手勢自動出聲」：改成提示 + 第一次點擊開始
+      setStatus("已載入文字：請點一下畫面開始朗讀");
+      const once = () => speakFrom(0);
+      window.addEventListener("pointerdown", once, { once: true });
+    } else {
+      setStatus("已載入文字");
+    }
+  } catch {
+    setStatus("載入失敗：請檢查檔案路徑");
+  }
+}
+
+async function preloadFromQuery() {
+  const params = new URLSearchParams(location.search);
+  const file = params.get("file");
+  const autoplay = params.get("autoplay") === "1";
+  if (!file) return;
+  await loadTextFile(file, autoplay);
+}
+
+async function copyShareLink() {
+  if (!currentFile) {
+    alert("目前不是從檔案載入，無法產生播放連結。請先從「我的書」點選載入TXT。");
+    return;
+  }
+  const url = new URL(location.href);
+  url.searchParams.set("file", currentFile);
+  url.searchParams.set("autoplay", "1");
+  await navigator.clipboard.writeText(url.toString());
+  setStatus("已複製播放連結");
+}
+
+/* ---------------- Book list from texts/library.json ---------------- */
+async function loadBookList() {
+  const container = document.getElementById("bookList");
+  if (!container) return;
+
+  try {
+    const res = await fetch("texts/library.json", { cache: "no-store" });
+    if (!res.ok) throw new Error("no manifest");
+    const lib = await res.json();
+    const books = lib.books || [];
+
+    container.innerHTML = "";
+
+    books.forEach(b => {
+      const row = document.createElement("div");
+      row.className = "bookItem";
+
+      const title = document.createElement("div");
+      title.className = "bookTitle";
+      title.textContent = b.title || b.id || b.file;
+
+      title.addEventListener("click", async () => {
+        stop(false);
+        await loadTextFile(b.file, false);
+
+        // 更新網址（方便書籤/也方便你手動複製）
+        const url = new URL(location.href);
+        url.searchParams.set("file", b.file);
+        url.searchParams.delete("autoplay");
+        history.replaceState({}, "", url);
+      });
+
+      const linkBtn = document.createElement("button");
+      linkBtn.className = "btn";
+      linkBtn.textContent = "播放連結";
+      linkBtn.addEventListener("click", async () => {
+        const url = new URL(location.href);
+        url.searchParams.set("file", b.file);
+        url.searchParams.set("autoplay", "1");
+        await navigator.clipboard.writeText(url.toString());
+        setStatus("已複製播放連結");
+      });
+
+      row.appendChild(title);
+      row.appendChild(linkBtn);
+      container.appendChild(row);
     });
 
-    els.libraryGrid.appendChild(card);
+    if (!books.length) container.textContent = "尚未新增書單。";
+  } catch {
+    container.textContent = "找不到 texts/library.json，請先建立書單檔。";
+  }
+}
+
+/* ---------------- Bind UI ---------------- */
+function bind() {
+  els.btnParse.addEventListener("click", parse);
+  els.btnPlay.addEventListener("click", () => speakFrom(0));
+  els.btnPlayCursor.addEventListener("click", playFromCursor);
+  els.btnPause.addEventListener("click", pause);
+  els.btnResume.addEventListener("click", resume);
+  els.btnStop.addEventListener("click", () => stop(true));
+
+  els.btnCopyShare.addEventListener("click", copyShareLink);
+
+  els.btnClear.addEventListener("click", () => {
+    stop(false);
+    if (!confirm("確定清空文字與分段？")) return;
+    els.text.value = "";
+    currentFile = "";
+    segs = [];
+    currentIndex = 0;
+    els.segments.textContent = "尚未解析";
+    updateMetrics();
+    updateProgress();
+    setStatus("已清空");
+  });
+
+  els.rate.addEventListener("input", () => els.rateVal.textContent = Number(els.rate.value).toFixed(1));
+  els.vol.addEventListener("input", () => els.volVal.textContent = Number(els.vol.value).toFixed(2));
+  els.pitch.addEventListener("input", () => els.pitchVal.textContent = Number(els.pitch.value).toFixed(1));
+  els.langHint.addEventListener("change", () => populateVoices());
+
+  els.text.addEventListener("input", () => updateMetrics());
+
+  // 切到背景就停止，避免在背景播放造成使用者困擾
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) stop(false);
   });
 }
 
-/* ---------- Render: Book ---------- */
-function renderBook(bookItem, bookJson) {
-  show("book");
+function init() {
+  bind();
 
-  state.currentBookItem = bookItem;
-  state.currentBook = bookJson;
+  els.rateVal.textContent = Number(els.rate.value).toFixed(1);
+  els.volVal.textContent = Number(els.vol.value).toFixed(2);
+  els.pitchVal.textContent = Number(els.pitch.value).toFixed(1);
 
-  els.bookTitle.textContent = bookJson.title || bookItem.title || "—";
-  els.bookAuthor.textContent = bookJson.author || bookItem.author || "—";
-  els.bookLicense.textContent = bookJson.license || bookItem.license || "—";
-  els.bookDesc.textContent = bookJson.description || bookItem.description || "";
-
-  // cover
-  if (bookItem.coverUrl) {
-    els.bookCover.style.background = `url(${bookItem.coverUrl}) center/cover no-repeat`;
+  if (!("speechSynthesis" in window)) {
+    setStatus("此瀏覽器不支援 SpeechSynthesis，建議用 Chrome/Edge。");
   } else {
-    els.bookCover.style.background = `linear-gradient(180deg, rgba(59,130,246,.25), rgba(34,197,94,.18))`;
+    populateVoices();
+    window.speechSynthesis.onvoiceschanged = () => populateVoices();
   }
 
-  // links
-  const source = bookJson.sourceUrl || bookItem.sourceUrl || "";
-  els.bookSource.href = source || "#";
-  els.bookSource.style.pointerEvents = source ? "auto" : "none";
-  els.bookSource.style.opacity = source ? "1" : ".5";
+  updateMetrics();
+  updateProgress();
+  setButtons();
 
-  const pdf = bookJson.pdfUrl || "";
-  els.bookPDF.hidden = !pdf;
-  if (pdf) els.bookPDF.href = pdf;
-
-  // resume
-  const saved = state.progress[bookItem.id];
-  els.btnResume.disabled = !saved;
-  els.btnResume.textContent = saved ? `從上次續聽（第 ${getChapterOrderText(bookJson, saved.chapterId)}）` : "從上次續聽";
-
-  // chapters
-  const chapters = (bookJson.chapters || []).slice().sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-  els.chapterList.innerHTML = "";
-
-  chapters.forEach((ch, idx) => {
-    const row = document.createElement("div");
-    row.className = "listItem";
-
-    const dur = ch.durationSec ? formatTime(ch.durationSec) : "";
-    const progressForBook = state.progress[bookItem.id];
-    const isLast = progressForBook?.chapterId === ch.id;
-    const hint = isLast ? `續聽：${formatTime(progressForBook.timeSec || 0)}` : "";
-
-    row.innerHTML = `
-      <div class="listLeft">
-        <div class="listTitle">${escapeHtml(ch.title || `第 ${idx + 1} 章`)}</div>
-        <div class="listSub">${dur ? `時長 ${dur}` : ""}${dur && hint ? " · " : ""}${hint}</div>
-      </div>
-      <div class="spacer"></div>
-      <div class="listRight">
-        <span class="pill">播放</span>
-      </div>
-    `;
-
-    row.addEventListener("click", () => setHash(`listen/${bookItem.id}/${ch.id}`));
-    els.chapterList.appendChild(row);
-  });
+  loadBookList();
+  preloadFromQuery();
 }
 
-function getChapterOrderText(bookJson, chapterId) {
-  const chapters = (bookJson.chapters || []);
-  const idx = chapters.findIndex(c => c.id === chapterId);
-  return idx >= 0 ? String((chapters[idx].order ?? (idx + 1))) : "?";
-}
-
-/* ---------- Render: Listen ---------- */
-function renderListen(bookItem, bookJson, chapterId) {
-  show("listen");
-
-  state.currentBookItem = bookItem;
-  state.currentBook = bookJson;
-
-  const chapters = (bookJson.chapters || []).slice().sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-  const idx = chapters.findIndex(c => c.id === chapterId);
-  state.currentChapterIndex = idx >= 0 ? idx : 0;
-
-  const ch = chapters[state.currentChapterIndex];
-  if (!ch) {
-    alert("找不到章節。");
-    setHash(`book/${bookItem.id}`);
-    return;
-  }
-
-  els.listenBook.textContent = bookJson.title || bookItem.title || "—";
-  els.listenTitle.textContent = ch.title || "—";
-  els.listenMeta.textContent = `${bookJson.author || bookItem.author || ""} · ${bookJson.license || bookItem.license || ""}`;
-
-  // audio
-  els.audio.src = ch.audioUrl || "";
-  els.downloadLink.href = ch.audioUrl || "#";
-  // 注意：跨網域下載可能不一定成功，但至少能開啟音檔
-  els.downloadLink.target = "_blank";
-  els.downloadLink.rel = "noreferrer";
-
-  // speed
-  const speed = Number(state.prefs.speed || 1.0);
-  els.speedSelect.value = String(speed);
-  els.audio.playbackRate = speed;
-
-  setPlayStatus("就緒");
-
-  // restore progress (time)
-  const saved = state.progress[bookItem.id];
-  const shouldSeek = saved && saved.chapterId === ch.id && Number.isFinite(saved.timeSec) && saved.timeSec > 0;
-
-  // metadata loaded -> seek
-  els.audio.onloadedmetadata = () => {
-    if (shouldSeek) {
-      const t = Math.min(saved.timeSec, Math.max(0, els.audio.duration - 1));
-      els.audio.currentTime = t;
-      setPlayStatus(`已定位到 ${formatTime(t)}`);
-    }
-  };
-
-  // auto-next
-  els.audio.onended = () => {
-    setPlayStatus("本章結束，準備播放下一章…");
-    const next = state.currentChapterIndex + 1;
-    if (next < chapters.length) {
-      setHash(`listen/${bookItem.id}/${chapters[next].id}`);
-    } else {
-      setPlayStatus("已播放到最後一章。");
-    }
-  };
-
-  // save progress (throttle)
-  let lastSaveAt = 0;
-  els.audio.ontimeupdate = () => {
-    const now = Date.now();
-    if (now - lastSaveAt < 5000) return; // 5 秒存一次
-    lastSaveAt = now;
-
-    state.progress[bookItem.id] = {
-      chapterId: ch.id,
-      timeSec: Math.floor(els.audio.currentTime || 0),
-      updatedAt: now
-    };
-    saveLocal();
-  };
-
-  els.btnPrevChapter.disabled = state.currentChapterIndex <= 0;
-  els.btnNextChapter.disabled = state.currentChapterIndex >= chapters.length - 1;
-}
-
-/* ---------- Router ---------- */
-async function route() {
-  const parts = getHashParts();
-
-  if (!state.library) {
-    await loadLibrary();
-  }
-
-  // default: library
-  if (parts.length === 0) {
-    renderLibrary();
-    return;
-  }
-
-  const [page, a, b] = parts;
-
-  if (page === "book" && a) {
-    const bookId = a;
-    const bookItem = state.booksIndex.get(bookId);
-    if (!bookItem) {
-      alert("找不到書籍。");
-      setHash("");
-      return;
-    }
-    const bookJson = await fetchJson(bookItem.bookJsonPath);
-    renderBook(bookItem, bookJson);
-    return;
-  }
-
-  if (page === "listen" && a && b) {
-    const bookId = a;
-    const chapterId = b;
-    const bookItem = state.booksIndex.get(bookId);
-    if (!bookItem) {
-      alert("找不到書籍。");
-      setHash("");
-      return;
-    }
-    const bookJson = await fetchJson(bookItem.bookJsonPath);
-    renderListen(bookItem, bookJson, chapterId);
-    return;
-  }
-
-  renderLibrary();
-}
-
-/* ---------- Load Library ---------- */
-async function loadLibrary() {
-  try {
-    state.library = await fetchJson("./data/library.json");
-    state.booksIndex.clear();
-    (state.library.books || []).forEach(b => state.booksIndex.set(b.id, b));
-  } catch (e) {
-    console.error(e);
-    alert("讀取書庫失敗：請確認 data/library.json 存在且為有效 JSON。");
-    state.library = { books: [] };
-  }
-}
-
-/* ---------- Events ---------- */
-function bindEvents() {
-  window.addEventListener("hashchange", () => route().catch(console.error));
-
-  els.goHome.addEventListener("click", () => setHash(""));
-  els.goHome.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" || e.key === " ") setHash("");
-  });
-
-  els.searchInput.addEventListener("input", () => {
-    state.search = els.searchInput.value || "";
-    renderLibrary();
-  });
-
-  els.btnBackToLibrary.addEventListener("click", () => setHash(""));
-  els.btnBackToBook.addEventListener("click", () => {
-    const id = state.currentBookItem?.id;
-    if (id) setHash(`book/${id}`);
-    else setHash("");
-  });
-
-  els.btnShareBook.addEventListener("click", copyShareLink);
-  els.btnShareChapter.addEventListener("click", copyShareLink);
-
-  els.btnResume.addEventListener("click", () => {
-    const bookId = state.currentBookItem?.id;
-    if (!bookId) return;
-
-    const saved = state.progress[bookId];
-    if (!saved?.chapterId) return;
-
-    setHash(`listen/${bookId}/${saved.chapterId}`);
-  });
-
-  els.speedSelect.addEventListener("change", () => {
-    const v = Number(els.speedSelect.value);
-    state.prefs.speed = v;
-    els.audio.playbackRate = v;
-    saveLocal();
-  });
-
-  els.btnPrevChapter.addEventListener("click", () => {
-    const bookId = state.currentBookItem?.id;
-    const bookJson = state.currentBook;
-    if (!bookId || !bookJson) return;
-
-    const chapters = (bookJson.chapters || []).slice().sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-    const prev = state.currentChapterIndex - 1;
-    if (prev >= 0) setHash(`listen/${bookId}/${chapters[prev].id}`);
-  });
-
-  els.btnNextChapter.addEventListener("click", () => {
-    const bookId = state.currentBookItem?.id;
-    const bookJson = state.currentBook;
-    if (!bookId || !bookJson) return;
-
-    const chapters = (bookJson.chapters || []).slice().sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-    const next = state.currentChapterIndex + 1;
-    if (next < chapters.length) setHash(`listen/${bookId}/${chapters[next].id}`);
-  });
-
-  els.btnClearProgress.addEventListener("click", () => {
-    if (!confirm("確定要清除本機續聽進度？")) return;
-    state.progress = {};
-    saveLocal();
-    alert("已清除。");
-    // 若在書籍頁，更新提示
-    const parts = getHashParts();
-    if (parts[0] === "book") route().catch(console.error);
-  });
-
-  // PWA install
-  window.addEventListener("beforeinstallprompt", (e) => {
-    e.preventDefault();
-    deferredPrompt = e;
-    els.btnInstall.hidden = false;
-  });
-  els.btnInstall.addEventListener("click", async () => {
-    if (!deferredPrompt) return;
-    deferredPrompt.prompt();
-    await deferredPrompt.userChoice;
-    deferredPrompt = null;
-    els.btnInstall.hidden = true;
-  });
-}
-
-/* ---------- helpers ---------- */
-function escapeHtml(str) {
-  return String(str ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-}
-
-/* ---------- init ---------- */
-async function init() {
-  loadLocal();
-  // speed init
-  els.speedSelect.value = String(Number(state.prefs.speed || 1.0));
-  bindEvents();
-  await route();
-
-  // register SW (保持你原本 PWA)
-  if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("./service-worker.js").catch(console.warn);
-  }
-}
-
-init().catch(console.error);
+init();

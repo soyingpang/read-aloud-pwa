@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "books": [
+    {
+      "id": "about-face-3",
+      "title": "About Face 3: The Essentials of Interaction Design",
+      "file": "texts/about-face-3.txt"
+    },
+    {
+      "id": "uxpin-interaction-design-best-practices",
+      "title": "UXPin — Interaction Design Best Practices",
+      "file": "texts/uxpin-interaction-design-best-practices.txt"
+    },
+    {
+      "id": "universal-principles-of-design",
+      "title": "Universal Principles of Design",
+      "file": "texts/universal-principles-of-design.txt"
+    }
+  ]
+}
