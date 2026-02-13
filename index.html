@@ -1,228 +1,223 @@
-<!doctype html>
-<html lang="zh-Hant">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>章節朗讀</title>
+const BUILD_ID = "2026-02-13-5";
+const $ = (id) => document.getElementById(id);
+const bust = (path) => {
+  const u = new URL(path, location.href);
+  u.searchParams.set("v", BUILD_ID);
+  return u.toString();
+};
 
-  <!-- 每次更新任何檔案，都改這個版本號 -->
-  <script>
-    window.BUILD_ID = "2026-02-13-4";
-  </script>
+const LS = {
+  font: "reader:fontSize",
+  last: "reader:lastProgress",
+};
 
-  <link id="cssMain" rel="stylesheet" href="" />
-  <script>
-    document.getElementById("cssMain").href = "styles.css?v=" + encodeURIComponent(window.BUILD_ID);
-  </script>
-</head>
+const els = {
+  // sheet
+  sheet: $("librarySheet"),
+  backdrop: $("sheetBackdrop"),
+  btnCloseTop: $("btnCloseLibrary"),
+  btnCloseBottom: $("btnCloseLibraryBottom"),
+  tabBooks: $("tabBooks"),
+  tabChapters: $("tabChapters"),
+  bookList: $("bookList"),
+  chapterList: $("chapterList"),
 
-<body>
-  <!-- App Bar -->
-  <header class="appbar">
-    <button id="btnOpenLibrary" class="iconBtn" aria-label="打開書庫">
-      <span class="icon">📚</span>
-      <span class="iconLabel">書庫</span>
-    </button>
+  // open
+  btnOpenLibrary: $("btnOpenLibrary"),
+  btnOpenLibrary2: $("btnOpenLibrary2"),
+  bbLibrary: $("bbLibrary"),
 
-    <div class="appbarCenter">
-      <div class="appTitle">章節朗讀</div>
-      <div id="nowTitle" class="appSubtitle">未選章節</div>
-    </div>
+  // minimal toast (如果你有)
+  toast: $("toast"),
+};
 
-    <button id="btnCopyShareTop" class="iconBtn" aria-label="複製章節播放連結">
-      <span class="icon">🔗</span>
-      <span class="iconLabel">分享</span>
-    </button>
-  </header>
+function toast(msg) {
+  if (!els.toast) {
+    console.log("[toast]", msg);
+    return;
+  }
+  els.toast.textContent = msg;
+  els.toast.classList.remove("hidden");
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => els.toast.classList.add("hidden"), 1600);
+}
 
-  <main class="page">
-    <!-- 第一屏主操作（一定見到） -->
-    <section class="card hero">
-      <div class="heroText">
-        <div class="heroTitle" id="heroBook">請先選擇書籍與章節</div>
-        <div class="heroSub" id="heroChapter">支援連結直達：?book=about-face-3&ch=ch-01&autoplay=1</div>
-      </div>
+/* ========= 最硬派的顯示/隱藏：class + inline style 雙保險 ========= */
+function hardShow(el, display = "block") {
+  if (!el) return;
+  el.classList.remove("hidden");
+  el.style.display = display;
+  el.style.pointerEvents = "auto";
+  el.setAttribute("aria-hidden", "false");
+}
+function hardHide(el) {
+  if (!el) return;
+  el.classList.add("hidden");
+  el.style.display = "none";
+  el.style.pointerEvents = "none";
+  el.setAttribute("aria-hidden", "true");
+}
 
-      <div class="heroActions">
-        <button id="btnMainHero" class="btn primary big">播放</button>
-        <div class="heroRow2">
-          <button id="btnOpenLibrary2" class="btn">選書/選章</button>
-          <button id="btnRestart" class="btn ghost" disabled>從頭</button>
-        </div>
-      </div>
+function isSheetOpen() {
+  if (!els.sheet) return false;
+  // 任何一種狀態都算 open：只要 display 不是 none 且沒有 hidden
+  const display = getComputedStyle(els.sheet).display;
+  return display !== "none" && !els.sheet.classList.contains("hidden");
+}
 
-      <div class="metaRow">
-        <div class="pill" id="metrics">字數：0｜內部分段：0</div>
-        <div class="pill" id="progress">0 / 0</div>
-        <div class="pill hidden" id="sleepPill">⏲ --:--</div>
-      </div>
-    </section>
+function openSheet(tab = "books") {
+  console.log("[sheet] open");
+  hardShow(els.backdrop, "block");
+  hardShow(els.sheet, "flex");
+  document.body.style.overflow = "hidden";
+  setTab(tab);
+}
 
-    <!-- 文字 -->
-    <section class="card">
-      <details id="textPanel" open>
-        <summary class="summary">
-          <span>文字內容</span>
-          <span class="summaryHint">可貼上文字或由章節載入</span>
-        </summary>
+function closeSheet() {
+  console.log("[sheet] close");
+  hardHide(els.sheet);
+  hardHide(els.backdrop);
+  document.body.style.overflow = "";
+  toast("已關閉書庫");
+}
 
-        <textarea id="text" class="textarea" placeholder="點章節後會載入文字；你也可以直接貼上文字"></textarea>
+function toggleSheet(tab = "books") {
+  if (isSheetOpen()) closeSheet();
+  else openSheet(tab);
+}
 
-        <div class="row mt10">
-          <button id="btnClear" class="btn ghost">清空文字</button>
-          <button id="btnPlayCursor" class="btn">從游標播放</button>
-          <div class="spacer"></div>
-          <span id="where" class="smallMuted">—</span>
-        </div>
-      </details>
-    </section>
+/* ========= Tab ========= */
+function setTab(tab) {
+  const isBooks = tab === "books";
+  if (els.tabBooks) els.tabBooks.classList.toggle("active", isBooks);
+  if (els.tabChapters) els.tabChapters.classList.toggle("active", !isBooks);
+  if (els.bookList) els.bookList.classList.toggle("hidden", !isBooks);
+  if (els.chapterList) els.chapterList.classList.toggle("hidden", isBooks);
+}
 
-    <!-- 設定 -->
-    <section class="card">
-      <details id="settingsPanel">
-        <summary class="summary">
-          <span>朗讀設定</span>
-          <span class="summaryHint">字體 / 睡眠計時 / 聲線 / 語速 / 音量 / 音高</span>
-        </summary>
+/* ========= 最關鍵：capture phase 全域攔截，確保任何情況都關到 =========
+   你目前的症狀「一直在最上層，關不了」，十之八九係事件被其他層吃掉/重新打開
+   capture 會在最早階段攔截到，並 stopImmediatePropagation，保證不會再被其他 handler 打開
+*/
+function bindHardCloseCapture() {
+  const selectors = [
+    "#btnCloseLibrary",
+    "#btnCloseLibraryBottom",
+    "#sheetBackdrop",
+  ].join(",");
 
-        <div class="segBlock">
-          <div class="segTitle">字體大小</div>
-          <div class="segControl" id="fontSeg" role="group" aria-label="字體大小">
-            <button class="segBtn" data-font="s">小</button>
-            <button class="segBtn" data-font="m">中</button>
-            <button class="segBtn" data-font="l">大</button>
-          </div>
-        </div>
+  // 用 pointerdown 最穩（滑鼠/觸控都吃到）
+  document.addEventListener("pointerdown", (e) => {
+    if (!isSheetOpen()) return;
 
-        <div class="segBlock">
-          <div class="segTitle">睡眠計時</div>
-          <div class="segControl" id="sleepSeg" role="group" aria-label="睡眠計時">
-            <button class="segBtn" data-sleep="0">關</button>
-            <button class="segBtn" data-sleep="10">10分</button>
-            <button class="segBtn" data-sleep="20">20分</button>
-            <button class="segBtn" data-sleep="30">30分</button>
-          </div>
-          <div class="tiny" id="sleepHint">未啟用</div>
-        </div>
+    const hit = e.target?.closest?.(selectors);
+    if (!hit) return;
 
-        <div class="grid">
-          <div class="field">
-            <label>聲線</label>
-            <select id="voice"></select>
-            <div class="tiny">若聲線列表空白，請稍等 1–3 秒或重新整理。</div>
-          </div>
+    console.log("[sheet] capture close by", hit.id || hit.className);
+    e.preventDefault();
+    e.stopPropagation();
+    if (typeof e.stopImmediatePropagation === "function") e.stopImmediatePropagation();
+    closeSheet();
+  }, true);
 
-          <div class="field">
-            <label>語速：<span id="rateVal">1.0</span>x</label>
-            <input id="rate" type="range" min="0.6" max="1.8" step="0.1" value="1.0" />
-          </div>
+  // click 作為備援（某些瀏覽器 pointerdown 行為不同）
+  document.addEventListener("click", (e) => {
+    if (!isSheetOpen()) return;
 
-          <div class="field">
-            <label>音量：<span id="volVal">1.0</span></label>
-            <input id="vol" type="range" min="0" max="1" step="0.05" value="1.0" />
-          </div>
+    const hit = e.target?.closest?.(selectors);
+    if (!hit) return;
 
-          <div class="field">
-            <label>音高：<span id="pitchVal">1.0</span></label>
-            <input id="pitch" type="range" min="0.5" max="1.6" step="0.1" value="1.0" />
-          </div>
+    console.log("[sheet] capture click-close by", hit.id || hit.className);
+    e.preventDefault();
+    e.stopPropagation();
+    if (typeof e.stopImmediatePropagation === "function") e.stopImmediatePropagation();
+    closeSheet();
+  }, true);
 
-          <div class="field">
-            <label>語言提示</label>
-            <select id="langHint">
-              <option value="">自動</option>
-              <option value="zh-CN">普通話（zh-CN）</option>
-              <option value="zh-TW">中文（zh-TW）</option>
-              <option value="en-US">英文（en-US）</option>
-            </select>
-          </div>
-        </div>
-      </details>
-    </section>
+  // ESC（桌面保險）
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && isSheetOpen()) closeSheet();
+  }, true);
 
-    <footer class="footer">
-      使用瀏覽器內建語音朗讀（不產生 MP3）。手機瀏覽器通常需要點一下才可開始播放。
-    </footer>
-  </main>
+  // 防止點 Sheet 內容時「誤關閉」
+  if (els.sheet) {
+    els.sheet.addEventListener("pointerdown", (e) => e.stopPropagation(), true);
+    els.sheet.addEventListener("click", (e) => e.stopPropagation(), true);
+  }
+}
 
-  <!-- 底部固定欄（永遠可見） -->
-  <nav class="bottomBar" aria-label="底部操作">
-    <button id="bbLibrary" class="bbBtn">
-      <span class="bbIcon">📚</span><span class="bbText">書庫</span>
-    </button>
+/* ========= 綁定打開按鈕 ========= */
+function bindOpenButtons() {
+  const openHandlers = [
+    els.btnOpenLibrary,
+    els.btnOpenLibrary2,
+    els.bbLibrary,
+  ].filter(Boolean);
 
-    <button id="bbMain" class="bbBtn primary">
-      <span class="bbIcon">▶︎</span><span class="bbText">播放</span>
-    </button>
+  openHandlers.forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      toggleSheet("books");
+    });
+  });
+}
 
-    <button id="bbStop" class="bbBtn danger" disabled>
-      <span class="bbIcon">■</span><span class="bbText">停止</span>
-    </button>
+/* =========（可選）最小化渲染書籍清單：只要你現有 app 已有，可刪掉 ========= */
+async function fetchJson(path) {
+  const res = await fetch(bust(path), { cache: "no-store" });
+  if (!res.ok) throw new Error(`JSON讀取失敗：${path}`);
+  return await res.json();
+}
 
-    <button id="bbSettings" class="bbBtn">
-      <span class="bbIcon">⚙️</span><span class="bbText">設定</span>
-    </button>
-  </nav>
+async function loadLibraryMinimal() {
+  if (!els.bookList) return;
+  try {
+    const library = await fetchJson("texts/library.json");
+    els.bookList.innerHTML = "";
+    (library.books || []).forEach((b) => {
+      const item = document.createElement("div");
+      item.className = "item";
+      const main = document.createElement("div");
+      main.className = "itemMain";
+      main.innerHTML = `<div class="itemTitle">${b.title || b.id}</div><div class="itemSub">點選以載入章節</div>`;
+      item.appendChild(main);
+      els.bookList.appendChild(item);
+    });
+  } catch (err) {
+    console.error(err);
+    els.bookList.textContent = "載入失敗：請檢查 texts/library.json";
+  }
+}
 
-  <!-- 書庫 Sheet -->
-  <div id="sheetBackdrop" class="backdrop hidden"></div>
-  <aside id="librarySheet" class="sheet hidden" role="dialog" aria-modal="true" aria-label="書庫">
-    <div class="sheetHandle" aria-hidden="true"></div>
+/* ========= init ========= */
+function init() {
+  if (!els.sheet || !els.backdrop) {
+    console.warn("[init] 找不到 librarySheet 或 sheetBackdrop，請確認 id");
+  }
 
-    <div class="sheetHeader">
-      <button id="btnCloseLibrary" class="closeBtn" aria-label="關閉書庫">✕</button>
-      <div class="sheetTitle">書庫</div>
-      <div class="sheetRight"></div>
-    </div>
+  // 強制確保在最上層（JS 再加一層保險）
+  if (els.backdrop) {
+    els.backdrop.style.zIndex = "9000";
+    els.backdrop.style.position = "fixed";
+    els.backdrop.style.pointerEvents = "auto";
+  }
+  if (els.sheet) {
+    els.sheet.style.zIndex = "9001";
+    els.sheet.style.position = "fixed";
+    els.sheet.style.pointerEvents = "auto";
+  }
 
-    <div class="sheetTabs">
-      <button id="tabBooks" class="tab active">書籍</button>
-      <button id="tabChapters" class="tab">章節</button>
-    </div>
+  bindHardCloseCapture();
+  bindOpenButtons();
 
-    <div class="sheetBody">
-      <div id="bookList" class="list">載入中…</div>
-      <div id="chapterList" class="list hidden">請先選一本書</div>
-    </div>
+  // 預設關閉（避免你說的「一直在最上層」）
+  closeSheet();
 
-    <div class="sheetFooter">
-      <button id="btnCloseLibraryBottom" class="btn primary big w100">完成（關閉書庫）</button>
-    </div>
-  </aside>
+  // 可選：如果你原本 app 已有 render，就刪呢行
+  loadLibraryMinimal();
 
-  <!-- Toast -->
-  <div id="toast" class="toast hidden" aria-live="polite"></div>
+  toast(`已載入 v${BUILD_ID}`);
+}
 
-  <!-- 系統層面：版本參數 + 清掉舊 SW/Cache + 載入 app.js -->
-  <script>
-    (async () => {
-      const BUILD_ID = window.BUILD_ID || "dev";
-      const url = new URL(location.href);
-
-      if (url.searchParams.get("v") !== BUILD_ID) {
-        url.searchParams.set("v", BUILD_ID);
-        location.replace(url.toString());
-        return;
-      }
-
-      try {
-        if ("serviceWorker" in navigator) {
-          const regs = await navigator.serviceWorker.getRegistrations();
-          await Promise.all(regs.map(r => r.unregister()));
-        }
-      } catch {}
-
-      try {
-        if (window.caches) {
-          const keys = await caches.keys();
-          await Promise.all(keys.map(k => caches.delete(k)));
-        }
-      } catch {}
-
-      const s = document.createElement("script");
-      s.src = "app.js?v=" + encodeURIComponent(BUILD_ID);
-      document.body.appendChild(s);
-    })();
-  </script>
-</body>
-</html>
+init();

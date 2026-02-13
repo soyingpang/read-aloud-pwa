@@ -1,0 +1,9 @@
+{
+  "name": "章節朗讀",
+  "short_name": "朗讀",
+  "start_url": "./?v=2026-02-13-6",
+  "display": "standalone",
+  "background_color": "#0b1220",
+  "theme_color": "#0b1220",
+  "icons": []
+}
