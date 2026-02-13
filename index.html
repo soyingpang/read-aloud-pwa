@@ -2,110 +2,211 @@
 <html lang="zh-Hant">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>我的書庫・章節朗讀</title>
-  <link rel="stylesheet" href="styles.css" />
+
+  <!-- 每次更新章節/JSON/TXT，改這個版本號即可（例如 2026-02-13-2） -->
+  <script>
+    window.BUILD_ID = "2026-02-13-1";
+  </script>
+
+  <link id="cssMain" rel="stylesheet" href="" />
+  <script>
+    document.getElementById("cssMain").href = "styles.css?v=" + encodeURIComponent(window.BUILD_ID);
+  </script>
 </head>
+
 <body>
-  <header class="topbar">
-    <div>
-      <div class="brand">我的書庫・章節朗讀</div>
-      <div class="sub">點書 → 點章節載入TXT → 按播放一路朗讀到章末；可分享章節播放連結（載入後點一下開始朗讀）</div>
+  <!-- 頂部 App Bar（手機優先） -->
+  <header class="appbar">
+    <button id="btnOpenLibrary" class="iconBtn" aria-label="打開書庫">
+      <span class="icon">📚</span>
+      <span class="iconLabel">書庫</span>
+    </button>
+
+    <div class="appbarCenter">
+      <div class="appTitle">章節朗讀</div>
+      <div id="nowTitle" class="appSubtitle">未選章節</div>
     </div>
-    <div class="row">
-      <button id="btnClear" class="btn ghost" title="清空文字">清空</button>
-    </div>
+
+    <button id="btnCopyShareTop" class="iconBtn" aria-label="複製章節播放連結">
+      <span class="icon">🔗</span>
+      <span class="iconLabel">分享</span>
+    </button>
   </header>
 
-  <main class="container">
-    <section class="card">
-      <h2>書與章節</h2>
-      <p class="hint">可用連結直接開到某一章：<code>?book=about-face-3&ch=ch-01&autoplay=1</code></p>
-
-      <div class="twoCol">
-        <div>
-          <div class="sectionTitle">書</div>
-          <div id="bookList" class="list">載入中…</div>
+  <main class="page">
+    <!-- 章節提示卡 -->
+    <section class="card hero">
+      <div class="heroRow">
+        <div class="heroText">
+          <div class="heroTitle" id="heroBook">請先選擇書籍與章節</div>
+          <div class="heroSub" id="heroChapter">支援連結直達：?book=about-face-3&ch=ch-01&autoplay=1</div>
         </div>
-
-        <div>
-          <div class="sectionTitle">章節</div>
-          <div id="chapterList" class="list mutedBox">請先選一本書</div>
+        <div class="heroActions">
+          <button id="btnOpenLibrary2" class="btn primary">選書/選章</button>
+          <button id="btnRestart" class="btn ghost" disabled>從頭</button>
         </div>
+      </div>
+
+      <div class="metaRow">
+        <div class="pill" id="metrics">字數：0｜內部分段：0</div>
+        <div class="pill" id="progress">0 / 0</div>
+        <div class="pill hidden" id="sleepPill">⏲ --:--</div>
       </div>
     </section>
 
+    <!-- 文字區（可收合） -->
     <section class="card">
-      <h2 id="nowTitle">文字</h2>
+      <details id="textPanel" open>
+        <summary class="summary">
+          <span>文字內容</span>
+          <span class="summaryHint">可貼上文字或由章節載入</span>
+        </summary>
 
-      <textarea id="text" placeholder="點章節後會載入文字；你也可以自行貼上文字"></textarea>
+        <textarea id="text" class="textarea" placeholder="點章節後會載入文字；你也可以直接貼上文字"></textarea>
 
-      <div class="row mt12">
-        <button id="btnPlay" class="btn primary">播放（從頭）</button>
-        <button id="btnPlayCursor" class="btn">播放（從游標）</button>
-        <button id="btnPause" class="btn" disabled>暫停</button>
-        <button id="btnResume" class="btn" disabled>繼續</button>
-        <button id="btnStop" class="btn" disabled>停止</button>
-
-        <div class="spacer"></div>
-
-        <button id="btnCopyShare" class="btn">複製章節播放連結</button>
-        <span id="status" class="status">就緒</span>
-      </div>
-
-      <div class="row mt10">
-        <span id="metrics" class="metrics">字數：0｜內部分段：0</span>
-        <div class="spacer"></div>
-        <div class="metrics" id="progress">0 / 0</div>
-      </div>
+        <div class="row mt10">
+          <button id="btnClear" class="btn ghost">清空文字</button>
+          <div class="spacer"></div>
+          <span id="where" class="smallMuted">—</span>
+        </div>
+      </details>
     </section>
 
+    <!-- 設定（收合） -->
     <section class="card">
-      <h2>朗讀設定</h2>
-      <div class="grid">
-        <div class="field">
-          <label>聲線</label>
-          <select id="voice"></select>
-          <div class="tiny">若聲線列表空白，請稍等 1–3 秒或重新整理。</div>
-        </div>
+      <details>
+        <summary class="summary">
+          <span>朗讀設定</span>
+          <span class="summaryHint">字體 / 睡眠計時 / 聲線 / 語速 / 音量 / 音高</span>
+        </summary>
 
-        <div class="field">
-          <label>語速：<span id="rateVal">1.0</span>x</label>
-          <input id="rate" type="range" min="0.6" max="1.8" step="0.1" value="1.0" />
-        </div>
-
-        <div class="field">
-          <label>音量：<span id="volVal">1.0</span></label>
-          <input id="vol" type="range" min="0" max="1" step="0.05" value="1" />
-        </div>
-
-        <div class="field">
-          <label>音高：<span id="pitchVal">1.0</span></label>
-          <input id="pitch" type="range" min="0.5" max="1.6" step="0.1" value="1.0" />
-        </div>
-
-        <div class="field">
-          <label>語言提示</label>
-          <select id="langHint">
-            <option value="">自動</option>
-            <option value="zh-CN">普通話（zh-CN）</option>
-            <option value="zh-TW">中文（zh-TW）</option>
-            <option value="en-US">英文（en-US）</option>
-          </select>
-        </div>
-
-        <div class="field">
-          <label>目前位置</label>
-          <div class="panel mini">
-            <div id="where" class="tiny">—</div>
+        <!-- 字體大小 -->
+        <div class="segBlock">
+          <div class="segTitle">字體大小</div>
+          <div class="segControl" id="fontSeg" role="group" aria-label="字體大小">
+            <button class="segBtn" data-font="s">小</button>
+            <button class="segBtn" data-font="m">中</button>
+            <button class="segBtn" data-font="l">大</button>
           </div>
         </div>
-      </div>
+
+        <!-- 睡眠計時 -->
+        <div class="segBlock">
+          <div class="segTitle">睡眠計時</div>
+          <div class="segControl" id="sleepSeg" role="group" aria-label="睡眠計時">
+            <button class="segBtn" data-sleep="0">關</button>
+            <button class="segBtn" data-sleep="10">10分</button>
+            <button class="segBtn" data-sleep="20">20分</button>
+            <button class="segBtn" data-sleep="30">30分</button>
+          </div>
+          <div class="tiny" id="sleepHint">未啟用</div>
+        </div>
+
+        <div class="grid">
+          <div class="field">
+            <label>聲線</label>
+            <select id="voice"></select>
+            <div class="tiny">若聲線列表空白，請稍等 1–3 秒或重新整理。</div>
+          </div>
+
+          <div class="field">
+            <label>語速：<span id="rateVal">1.0</span>x</label>
+            <input id="rate" type="range" min="0.6" max="1.8" step="0.1" value="1.0" />
+          </div>
+
+          <div class="field">
+            <label>音量：<span id="volVal">1.0</span></label>
+            <input id="vol" type="range" min="0" max="1" step="0.05" value="1" />
+          </div>
+
+          <div class="field">
+            <label>音高：<span id="pitchVal">1.0</span></label>
+            <input id="pitch" type="range" min="0.5" max="1.6" step="0.1" value="1.0" />
+          </div>
+
+          <div class="field">
+            <label>語言提示</label>
+            <select id="langHint">
+              <option value="">自動</option>
+              <option value="zh-CN">普通話（zh-CN）</option>
+              <option value="zh-TW">中文（zh-TW）</option>
+              <option value="en-US">英文（en-US）</option>
+            </select>
+          </div>
+        </div>
+      </details>
     </section>
 
-    <footer class="footer">此頁使用瀏覽器內建語音朗讀（無MP3下載）。</footer>
+    <footer class="footer">
+      使用瀏覽器內建語音朗讀（不產生 MP3）。手機瀏覽器通常需要點一下才可開始播放。
+    </footer>
   </main>
 
-  <script src="app.js"></script>
+  <!-- 底部播放器（固定，拇指區） -->
+  <nav class="playerBar" aria-label="播放器">
+    <button id="btnPlay" class="pbtn primary">播放</button>
+    <button id="btnPause" class="pbtn" disabled>暫停</button>
+    <button id="btnResume" class="pbtn" disabled>繼續</button>
+    <button id="btnStop" class="pbtn danger" disabled>停止</button>
+  </nav>
+
+  <!-- 書庫 Bottom Sheet -->
+  <div id="sheetBackdrop" class="backdrop hidden"></div>
+  <aside id="librarySheet" class="sheet hidden" role="dialog" aria-modal="true" aria-label="書庫">
+    <div class="sheetHeader">
+      <button id="btnCloseLibrary" class="iconBtn small" aria-label="關閉">
+        <span class="icon">✕</span><span class="iconLabel">關閉</span>
+      </button>
+      <div class="sheetTitle">書庫</div>
+      <div class="sheetRight"></div>
+    </div>
+
+    <div class="sheetTabs">
+      <button id="tabBooks" class="tab active">書籍</button>
+      <button id="tabChapters" class="tab">章節</button>
+    </div>
+
+    <div class="sheetBody">
+      <div id="bookList" class="list">載入中…</div>
+      <div id="chapterList" class="list hidden">請先選一本書</div>
+    </div>
+  </aside>
+
+  <!-- Toast -->
+  <div id="toast" class="toast hidden" aria-live="polite"></div>
+
+  <!-- 系統層面：自動帶 v=BUILD_ID；解除舊 SW/清 Cache；再載入 app.js（帶版本） -->
+  <script>
+    (async () => {
+      const BUILD_ID = window.BUILD_ID || "dev";
+      const url = new URL(location.href);
+
+      if (url.searchParams.get("v") !== BUILD_ID) {
+        url.searchParams.set("v", BUILD_ID);
+        location.replace(url.toString());
+        return;
+      }
+
+      try {
+        if ("serviceWorker" in navigator) {
+          const regs = await navigator.serviceWorker.getRegistrations();
+          await Promise.all(regs.map(r => r.unregister()));
+        }
+      } catch {}
+
+      try {
+        if (window.caches) {
+          const keys = await caches.keys();
+          await Promise.all(keys.map(k => caches.delete(k)));
+        }
+      } catch {}
+
+      const s = document.createElement("script");
+      s.src = "app.js?v=" + encodeURIComponent(BUILD_ID);
+      document.body.appendChild(s);
+    })();
+  </script>
 </body>
 </html>
