@@ -1,0 +1,7 @@
+{
+  "id": "book-002",
+  "title": "你的書名",
+  "chapters": [
+    { "id":"ch-001", "order":1, "title":"第 1 課 …", "audioUrl":"https://你的CDN/.../ch-001.mp3" }
+  ]
+}

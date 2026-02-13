@@ -13,6 +13,16 @@
       "coverUrl": "",
       "tags": ["公版", "示範"],
       "bookJsonPath": "./data/books/book-001/book.json"
-    }
+    },
+    {
+  "id": "book-002",
+  "title": "你的書名",
+  "author": "作者",
+  "license": "Public Domain",
+  "sourceUrl": "公版來源網址",
+  "tags": ["分類1", "分類2"],
+  "bookJsonPath": "./data/books/book-002/book.json"
+}
+
   ]
 }
