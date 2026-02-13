@@ -5,25 +5,20 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>章節朗讀</title>
 
-  <!-- 版本號：每次你更新檔案（尤其 TXT/JSON）都改一個新值，避免舊快取 -->
   <script>
-    window.BUILD_ID = "2026-02-13-7";
+    window.BUILD_ID = "2026-02-14-1";
   </script>
 
-  <!-- PWA（可保留；沒有也不影響一般使用） -->
   <link rel="manifest" href="manifest.json" />
   <meta name="theme-color" content="#0b1220" />
 
-  <!-- iOS 基本設定（可保留） -->
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 
-  <!-- CSS / JS：用版本號帶查詢參數 -->
-  <link rel="stylesheet" href="styles.css?v=2026-02-13-7" />
+  <link rel="stylesheet" href="styles.css?v=2026-02-14-1" />
 </head>
 
 <body>
-  <!-- Top Bar -->
   <header class="topbar" role="banner">
     <button id="btnOpenLibrary" class="iconBtn" type="button" aria-label="打開書庫">
       <span class="icon" aria-hidden="true">📚</span>
@@ -48,9 +43,7 @@
     </div>
   </header>
 
-  <!-- Main Layout -->
   <div class="layout">
-    <!-- Library Pane (Desktop sidebar / Mobile drawer) -->
     <aside id="libraryPane" class="pane" aria-label="書庫" aria-hidden="false">
       <div class="paneHeader">
         <div class="paneTitle">書庫</div>
@@ -72,16 +65,14 @@
 
       <div class="paneFooter">
         <div class="metaLine">
-          <span class="badge">v<span id="buildId">2026-02-13-7</span></span>
+          <span class="badge">v<span id="buildId">2026-02-14-1</span></span>
           <span class="muted">通用版（手機/桌機）</span>
         </div>
         <button id="btnCloseLibraryBottom" class="btn w100" type="button">完成</button>
       </div>
     </aside>
 
-    <!-- Main Content -->
     <main class="main" role="main">
-      <!-- Player Card -->
       <section class="card hero" aria-label="播放器">
         <div class="heroTop">
           <div class="heroTitle" id="heroBook">請先選擇書籍與章節</div>
@@ -105,7 +96,6 @@
         </div>
       </section>
 
-      <!-- Text Card -->
       <section class="card" aria-label="文字內容">
         <div class="cardTitleRow">
           <div class="cardTitle">文字內容</div>
@@ -128,10 +118,8 @@
     </main>
   </div>
 
-  <!-- Overlay：手機抽屜 / 設定視窗 都共用 -->
   <div id="overlay" class="overlay hidden" aria-hidden="true"></div>
 
-  <!-- Settings Modal -->
   <section id="settingsModal" class="modal hidden" role="dialog" aria-modal="true" aria-label="設定" aria-hidden="true">
     <div class="modalHeader">
       <div class="modalTitle">設定</div>
@@ -166,6 +154,15 @@
             <option value="30">30 分</option>
           </select>
           <div class="help" id="sleepHint">未啟用</div>
+        </div>
+
+        <div class="field">
+          <label for="punctMode">標點處理</label>
+          <select id="punctMode">
+            <option value="A" selected>A（保留停頓，不讀符號）</option>
+            <option value="B">B（完全移除標點）</option>
+          </select>
+          <div class="help">A 較自然；B 會更「一口氣」。</div>
         </div>
 
         <div class="field span2">
@@ -206,7 +203,6 @@
     </div>
   </section>
 
-  <!-- Toast -->
   <div id="toast" class="toast hidden" aria-live="polite"></div>
 
   <noscript>
@@ -215,6 +211,6 @@
     </div>
   </noscript>
 
-  <script src="app.js?v=2026-02-13-7"></script>
+  <script src="app.js?v=2026-02-14-1"></script>
 </body>
 </html>

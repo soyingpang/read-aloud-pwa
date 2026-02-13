@@ -1,47 +1,31 @@
-/* =========================
-   styles.css（通用版：手機/桌機）
-   對應 index.html（2026-02-13-7）
-========================= */
-
-/* ---------- Tokens ---------- */
 :root{
   --safeB: env(safe-area-inset-bottom, 0px);
   --safeT: env(safe-area-inset-top, 0px);
-
   --radius: 18px;
   --radius2: 22px;
   --shadow: 0 18px 50px rgba(0,0,0,.28);
-
   --paneW: 360px;
-
   --fontS: 15px;
   --fontM: 16px;
   --fontL: 18px;
-
   --focus: 0 0 0 3px rgba(59,130,246,.35);
 }
 
-/* 字體大小（由 html[data-font] 控制） */
 html[data-font="s"]{ --readerFont: var(--fontS); }
 html[data-font="m"]{ --readerFont: var(--fontM); }
 html[data-font="l"]{ --readerFont: var(--fontL); }
 
-/* 主題（由 html[data-theme] 控制） */
 html[data-theme="dark"]{
   --bg: #070b16;
   --bg2:#0b1220;
   --card: rgba(17, 24, 39, .88);
-
   --text:#e5e7eb;
   --muted:#94a3b8;
-
   --line: rgba(148,163,184,.14);
   --line2: rgba(148,163,184,.22);
-
   --pri:#3b82f6;
   --pri2:#2563eb;
   --danger:#ef4444;
-
   --overlay: rgba(0,0,0,.55);
 }
 
@@ -49,21 +33,16 @@ html[data-theme="light"]{
   --bg: #f6f8ff;
   --bg2:#ffffff;
   --card: rgba(255,255,255,.88);
-
   --text:#0f172a;
   --muted:#475569;
-
   --line: rgba(15,23,42,.14);
   --line2: rgba(15,23,42,.22);
-
   --pri:#2563eb;
   --pri2:#1d4ed8;
   --danger:#dc2626;
-
   --overlay: rgba(15,23,42,.35);
 }
 
-/* ---------- Base ---------- */
 *{ box-sizing:border-box; }
 html,body{ height:100%; }
 body{
@@ -78,13 +57,9 @@ body{
 
 .hidden{ display:none !important; }
 
-button, input, select, textarea{
-  font: inherit;
-}
+button, input, select, textarea{ font: inherit; }
 
-button{
-  -webkit-tap-highlight-color: transparent;
-}
+button{ -webkit-tap-highlight-color: transparent; }
 
 :focus-visible{
   outline: none;
@@ -92,7 +67,6 @@ button{
   border-radius: 14px;
 }
 
-/* ---------- Topbar ---------- */
 .topbar{
   position: sticky;
   top: 0;
@@ -107,10 +81,7 @@ button{
 }
 
 .titleBlock{ flex:1; min-width:0; }
-.appTitle{
-  font-weight: 950;
-  letter-spacing:.3px;
-}
+.appTitle{ font-weight: 950; letter-spacing:.3px; }
 .appSub{
   margin-top:2px;
   font-size:12px;
@@ -139,7 +110,6 @@ button{
 .iconBtn .icon{ font-size:18px; line-height:1; }
 .iconBtn .label{ font-size:11px; color: var(--muted); }
 
-/* ---------- Layout ---------- */
 .layout{
   max-width: 1180px;
   margin: 0 auto;
@@ -153,7 +123,6 @@ button{
   .layout{ grid-template-columns: 1fr; }
 }
 
-/* ---------- Pane (Desktop sidebar / Mobile drawer) ---------- */
 .pane{
   background: var(--card);
   border: 1px solid var(--line);
@@ -162,8 +131,6 @@ button{
   overflow:hidden;
   display:flex;
   flex-direction:column;
-
-  /* Desktop: sticky sidebar */
   position: sticky;
   top: calc(76px + var(--safeT));
   height: calc(100dvh - (92px + var(--safeT)));
@@ -307,12 +274,8 @@ button{
   background: color-mix(in oklab, var(--bg2), transparent 10%);
 }
 
-.muted{
-  color: var(--muted);
-  font-size:12px;
-}
+.muted{ color: var(--muted); font-size:12px; }
 
-/* Mobile drawer */
 @media (max-width: 920px){
   .pane{
     position: fixed;
@@ -329,7 +292,6 @@ button{
   .pane.open{ transform: translateX(0); }
 }
 
-/* ---------- Main ---------- */
 .main{
   display:flex;
   flex-direction:column;
@@ -344,10 +306,7 @@ button{
   padding: 14px;
 }
 
-.heroTop .heroTitle{
-  font-weight: 950;
-  font-size: 18px;
-}
+.heroTop .heroTitle{ font-weight: 950; font-size: 18px; }
 .heroTop .heroSub{
   margin-top:6px;
   font-size:12px;
@@ -378,9 +337,7 @@ button{
   border-color: color-mix(in oklab, var(--pri), transparent 55%);
 }
 
-.btn.ghost{
-  background: transparent;
-}
+.btn.ghost{ background: transparent; }
 
 .btn.danger{
   background: color-mix(in oklab, var(--danger), transparent 88%);
@@ -425,7 +382,6 @@ button{
   background: color-mix(in oklab, var(--bg2), transparent 10%);
 }
 
-/* Text card */
 .cardTitleRow{
   display:flex;
   justify-content:space-between;
@@ -458,7 +414,6 @@ button{
   padding-bottom: calc(10px + var(--safeB));
 }
 
-/* ---------- Overlay + Modal ---------- */
 .overlay{
   position: fixed;
   inset: 0;
@@ -516,10 +471,7 @@ button{
   .grid{ grid-template-columns: 1fr; }
 }
 
-.field label{
-  font-size: 12px;
-  color: var(--muted);
-}
+.field label{ font-size: 12px; color: var(--muted); }
 
 .field select,
 .field input[type="range"]{
@@ -544,7 +496,6 @@ button{
   .span2{ grid-column: auto; }
 }
 
-/* ---------- Toast ---------- */
 .toast{
   position: fixed;
   left: 12px;
