@@ -1,208 +1,221 @@
-/* app.js */
-const BUILD_ID = "2026-02-13-4";
+const BUILD_ID = "2026-02-13-5";
 const $ = (id) => document.getElementById(id);
-
-function toast(msg) {
-  const t = $("toast");
-  if (!t) return;
-  t.textContent = msg;
-  t.classList.remove("hidden");
-  clearTimeout(toast._t);
-  toast._t = setTimeout(() => t.classList.add("hidden"), 1600);
-}
-
-/** ====== SW 系統層面：逼用家升級（非常重要） ====== */
-(function swSafetyNet() {
-  if (!("serviceWorker" in navigator)) return;
-
-  // 收到 SW 自毀通知 -> reload 一次，確保拿到最新檔
-  navigator.serviceWorker.addEventListener("message", (e) => {
-    if (e?.data?.type === "SW_DISABLED") {
-      location.reload();
-    }
-  });
-
-  // 逼瀏覽器立即 check SW 更新（加速全體用家同步）
-  navigator.serviceWorker.getRegistration().then((reg) => {
-    if (reg) reg.update();
-  }).catch(() => {});
-})();
-
-/** ====== 你的元素（按你現有頁面 id，盡量兼容） ====== */
-const els = {
-  sheet: $("librarySheet") || $("sheet") || document.querySelector(".sheet"),
-  backdrop: $("sheetBackdrop") || $("backdrop") || document.querySelector(".backdrop"),
-  openBtns: [
-    $("btnOpenLibrary"),
-    $("btnOpenLibrary2"),
-    $("bbLibrary"),
-  ].filter(Boolean),
+const bust = (path) => {
+  const u = new URL(path, location.href);
+  u.searchParams.set("v", BUILD_ID);
+  return u.toString();
 };
 
-// 兼容你舊 UI：關閉按鈕可能叫唔同 id/class
-function getCloseButtons() {
-  const list = [];
+const LS = {
+  font: "reader:fontSize",
+  last: "reader:lastProgress",
+};
 
-  // 我版 id
-  const a = $("btnCloseLibrary");
-  const b = $("btnCloseLibraryBottom");
-  if (a) list.push(a);
-  if (b) list.push(b);
+const els = {
+  // sheet
+  sheet: $("librarySheet"),
+  backdrop: $("sheetBackdrop"),
+  btnCloseTop: $("btnCloseLibrary"),
+  btnCloseBottom: $("btnCloseLibraryBottom"),
+  tabBooks: $("tabBooks"),
+  tabChapters: $("tabChapters"),
+  bookList: $("bookList"),
+  chapterList: $("chapterList"),
 
-  // 你舊版可能存在嘅 selector（從截圖「X 關閉」推斷）
-  document.querySelectorAll(
-    [
-      "#closeLibrary",
-      "#btnClose",
-      "#btnCloseSheet",
-      ".closeBtn",
-      ".btnClose",
-      "button[aria-label*='關閉']",
-      "button[data-close='library']",
-      "button[data-action='close']",
-    ].join(",")
-  ).forEach((x) => list.push(x));
+  // open
+  btnOpenLibrary: $("btnOpenLibrary"),
+  btnOpenLibrary2: $("btnOpenLibrary2"),
+  bbLibrary: $("bbLibrary"),
 
-  // 去重
-  return Array.from(new Set(list));
+  // minimal toast (如果你有)
+  toast: $("toast"),
+};
+
+function toast(msg) {
+  if (!els.toast) {
+    console.log("[toast]", msg);
+    return;
+  }
+  els.toast.textContent = msg;
+  els.toast.classList.remove("hidden");
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => els.toast.classList.add("hidden"), 1600);
+}
+
+/* ========= 最硬派的顯示/隱藏：class + inline style 雙保險 ========= */
+function hardShow(el, display = "block") {
+  if (!el) return;
+  el.classList.remove("hidden");
+  el.style.display = display;
+  el.style.pointerEvents = "auto";
+  el.setAttribute("aria-hidden", "false");
+}
+function hardHide(el) {
+  if (!el) return;
+  el.classList.add("hidden");
+  el.style.display = "none";
+  el.style.pointerEvents = "none";
+  el.setAttribute("aria-hidden", "true");
 }
 
 function isSheetOpen() {
   if (!els.sheet) return false;
-  return !els.sheet.classList.contains("hidden");
+  // 任何一種狀態都算 open：只要 display 不是 none 且沒有 hidden
+  const display = getComputedStyle(els.sheet).display;
+  return display !== "none" && !els.sheet.classList.contains("hidden");
 }
 
-function show(el) {
-  if (!el) return;
-  el.classList.remove("hidden");
-  el.classList.add("open");
-  el.style.pointerEvents = "auto";
-}
-
-function hide(el) {
-  if (!el) return;
-  el.classList.add("hidden");
-  el.classList.remove("open");
-  el.style.pointerEvents = "none";
-}
-
-function openSheet() {
-  show(els.backdrop);
-  show(els.sheet);
-
-  // 防止背景滾動／點擊偏移
+function openSheet(tab = "books") {
+  console.log("[sheet] open");
+  hardShow(els.backdrop, "block");
+  hardShow(els.sheet, "flex");
   document.body.style.overflow = "hidden";
+  setTab(tab);
 }
 
 function closeSheet() {
-  hide(els.sheet);
-  hide(els.backdrop);
+  console.log("[sheet] close");
+  hardHide(els.sheet);
+  hardHide(els.backdrop);
   document.body.style.overflow = "";
   toast("已關閉書庫");
 }
 
-function toggleSheet() {
+function toggleSheet(tab = "books") {
   if (isSheetOpen()) closeSheet();
-  else openSheet();
+  else openSheet(tab);
 }
 
-/** ====== 關閉事件：用 capture 強制吃到點擊（重新思考後的核心修正） ======
- *  就算有其他層 stopPropagation / overlay，capture 都會先收到。
- */
-function bindCloseForce() {
-  // 1) 任何「點到關閉按鈕」都關（capture + bubble 都綁）
-  const attach = (node) => {
-    if (!node) return;
+/* ========= Tab ========= */
+function setTab(tab) {
+  const isBooks = tab === "books";
+  if (els.tabBooks) els.tabBooks.classList.toggle("active", isBooks);
+  if (els.tabChapters) els.tabChapters.classList.toggle("active", !isBooks);
+  if (els.bookList) els.bookList.classList.toggle("hidden", !isBooks);
+  if (els.chapterList) els.chapterList.classList.toggle("hidden", isBooks);
+}
 
-    const handler = (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      closeSheet();
-    };
+/* ========= 最關鍵：capture phase 全域攔截，確保任何情況都關到 =========
+   你目前的症狀「一直在最上層，關不了」，十之八九係事件被其他層吃掉/重新打開
+   capture 會在最早階段攔截到，並 stopImmediatePropagation，保證不會再被其他 handler 打開
+*/
+function bindHardCloseCapture() {
+  const selectors = [
+    "#btnCloseLibrary",
+    "#btnCloseLibraryBottom",
+    "#sheetBackdrop",
+  ].join(",");
 
-    node.addEventListener("pointerdown", handler, { passive: false, capture: true });
-    node.addEventListener("click", handler, { capture: true });
-    node.addEventListener("pointerdown", handler, { passive: false });
-    node.addEventListener("click", handler);
-  };
+  // 用 pointerdown 最穩（滑鼠/觸控都吃到）
+  document.addEventListener("pointerdown", (e) => {
+    if (!isSheetOpen()) return;
 
-  getCloseButtons().forEach(attach);
+    const hit = e.target?.closest?.(selectors);
+    if (!hit) return;
 
-  // 2) 點 backdrop 也關（capture）
-  if (els.backdrop) {
-    const handler = (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      closeSheet();
-    };
-    els.backdrop.addEventListener("pointerdown", handler, { passive: false, capture: true });
-    els.backdrop.addEventListener("click", handler, { capture: true });
-  }
+    console.log("[sheet] capture close by", hit.id || hit.className);
+    e.preventDefault();
+    e.stopPropagation();
+    if (typeof e.stopImmediatePropagation === "function") e.stopImmediatePropagation();
+    closeSheet();
+  }, true);
 
-  // 3) 保障：就算按鈕 id/class 對唔上，仍然用事件委派（capture）攔截
+  // click 作為備援（某些瀏覽器 pointerdown 行為不同）
   document.addEventListener("click", (e) => {
     if (!isSheetOpen()) return;
 
-    const t = e.target;
-    // 命中任一「像關閉」嘅按鈕就關
-    const hit = t?.closest?.(
-      [
-        "#btnCloseLibrary",
-        "#btnCloseLibraryBottom",
-        "#closeLibrary",
-        "#btnClose",
-        "#btnCloseSheet",
-        ".closeBtn",
-        ".btnClose",
-        "button[aria-label*='關閉']",
-        "button[data-close='library']",
-        "button[data-action='close']",
-      ].join(",")
-    );
+    const hit = e.target?.closest?.(selectors);
+    if (!hit) return;
 
-    if (hit) {
-      e.preventDefault();
-      e.stopPropagation();
-      closeSheet();
-    }
+    console.log("[sheet] capture click-close by", hit.id || hit.className);
+    e.preventDefault();
+    e.stopPropagation();
+    if (typeof e.stopImmediatePropagation === "function") e.stopImmediatePropagation();
+    closeSheet();
   }, true);
 
-  // 4) ESC 關閉（桌面保險）
+  // ESC（桌面保險）
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && isSheetOpen()) closeSheet();
+  }, true);
+
+  // 防止點 Sheet 內容時「誤關閉」
+  if (els.sheet) {
+    els.sheet.addEventListener("pointerdown", (e) => e.stopPropagation(), true);
+    els.sheet.addEventListener("click", (e) => e.stopPropagation(), true);
+  }
+}
+
+/* ========= 綁定打開按鈕 ========= */
+function bindOpenButtons() {
+  const openHandlers = [
+    els.btnOpenLibrary,
+    els.btnOpenLibrary2,
+    els.bbLibrary,
+  ].filter(Boolean);
+
+  openHandlers.forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      toggleSheet("books");
+    });
   });
 }
 
-/** ====== 打開書庫按鈕 ====== */
-function bindOpen() {
-  els.openBtns.forEach((btn) => btn.addEventListener("click", toggleSheet));
+/* =========（可選）最小化渲染書籍清單：只要你現有 app 已有，可刪掉 ========= */
+async function fetchJson(path) {
+  const res = await fetch(bust(path), { cache: "no-store" });
+  if (!res.ok) throw new Error(`JSON讀取失敗：${path}`);
+  return await res.json();
 }
 
-/** ====== 初始化 ====== */
-function init() {
-  // 基本防呆
-  if (!els.sheet) {
-    console.warn("[APP] 找不到 sheet 元素（#librarySheet 或 .sheet）");
+async function loadLibraryMinimal() {
+  if (!els.bookList) return;
+  try {
+    const library = await fetchJson("texts/library.json");
+    els.bookList.innerHTML = "";
+    (library.books || []).forEach((b) => {
+      const item = document.createElement("div");
+      item.className = "item";
+      const main = document.createElement("div");
+      main.className = "itemMain";
+      main.innerHTML = `<div class="itemTitle">${b.title || b.id}</div><div class="itemSub">點選以載入章節</div>`;
+      item.appendChild(main);
+      els.bookList.appendChild(item);
+    });
+  } catch (err) {
+    console.error(err);
+    els.bookList.textContent = "載入失敗：請檢查 texts/library.json";
   }
-  if (!els.backdrop) {
-    console.warn("[APP] 找不到 backdrop 元素（#sheetBackdrop 或 .backdrop）");
+}
+
+/* ========= init ========= */
+function init() {
+  if (!els.sheet || !els.backdrop) {
+    console.warn("[init] 找不到 librarySheet 或 sheetBackdrop，請確認 id");
   }
 
-  // 強制確保可點
-  if (els.sheet) {
-    els.sheet.style.pointerEvents = "auto";
-    // 重要：避免被其它層壓住（JS 再保險一次）
-    els.sheet.style.zIndex = "9001";
-    els.sheet.style.position = "fixed";
-  }
+  // 強制確保在最上層（JS 再加一層保險）
   if (els.backdrop) {
-    els.backdrop.style.pointerEvents = "auto";
     els.backdrop.style.zIndex = "9000";
     els.backdrop.style.position = "fixed";
+    els.backdrop.style.pointerEvents = "auto";
+  }
+  if (els.sheet) {
+    els.sheet.style.zIndex = "9001";
+    els.sheet.style.position = "fixed";
+    els.sheet.style.pointerEvents = "auto";
   }
 
-  bindOpen();
-  bindCloseForce();
+  bindHardCloseCapture();
+  bindOpenButtons();
+
+  // 預設關閉（避免你說的「一直在最上層」）
+  closeSheet();
+
+  // 可選：如果你原本 app 已有 render，就刪呢行
+  loadLibraryMinimal();
 
   toast(`已載入 v${BUILD_ID}`);
 }
