@@ -1,5 +1,6 @@
 const BUILD_ID = window.BUILD_ID || "dev";
 const $ = (id) => document.getElementById(id);
+
 const bust = (path) => {
   const u = new URL(path, location.href);
   u.searchParams.set("v", BUILD_ID);
@@ -8,10 +9,11 @@ const bust = (path) => {
 
 const LS = {
   font: "reader:fontSize",
-  last: "reader:lastProgress"
+  last: "reader:lastProgress",
 };
 
 const els = {
+  // hero / status
   nowTitle: $("nowTitle"),
   heroBook: $("heroBook"),
   heroChapter: $("heroChapter"),
@@ -21,18 +23,14 @@ const els = {
   sleepHint: $("sleepHint"),
   where: $("where"),
 
-  text: $("text"),
-  btnClear: $("btnClear"),
-  btnPlayCursor: $("btnPlayCursor"),
-  btnRestart: $("btnRestart"),
-
-  settingsPanel: $("settingsPanel"),
-
-  // hero main
+  // controls
   btnMainHero: $("btnMainHero"),
+  btnRestart: $("btnRestart"),
   btnOpenLibrary: $("btnOpenLibrary"),
   btnOpenLibrary2: $("btnOpenLibrary2"),
   btnCopyShareTop: $("btnCopyShareTop"),
+  btnClear: $("btnClear"),
+  btnPlayCursor: $("btnPlayCursor"),
 
   // bottom bar
   bbLibrary: $("bbLibrary"),
@@ -40,16 +38,13 @@ const els = {
   bbStop: $("bbStop"),
   bbSettings: $("bbSettings"),
 
-  // sheet
-  sheetBackdrop: $("sheetBackdrop"),
-  librarySheet: $("librarySheet"),
-  btnCloseLibrary: $("btnCloseLibrary"),
-  tabBooks: $("tabBooks"),
-  tabChapters: $("tabChapters"),
-  bookList: $("bookList"),
-  chapterList: $("chapterList"),
+  // panels
+  settingsPanel: $("settingsPanel"),
 
-  // segmented
+  // text
+  text: $("text"),
+
+  // segments
   fontSeg: $("fontSeg"),
   sleepSeg: $("sleepSeg"),
 
@@ -62,6 +57,16 @@ const els = {
   pitch: $("pitch"),
   pitchVal: $("pitchVal"),
   langHint: $("langHint"),
+
+  // sheet
+  sheetBackdrop: $("sheetBackdrop"),
+  librarySheet: $("librarySheet"),
+  btnCloseLibrary: $("btnCloseLibrary"),
+  btnCloseLibraryBottom: $("btnCloseLibraryBottom"),
+  tabBooks: $("tabBooks"),
+  tabChapters: $("tabChapters"),
+  bookList: $("bookList"),
+  chapterList: $("chapterList"),
 
   // toast
   toast: $("toast"),
@@ -83,20 +88,24 @@ let utter = null;
 let sleepEndAt = 0;
 let sleepTick = null;
 
+/* ---------------- Toast ---------------- */
 function showToast(msg) {
   els.toast.textContent = msg;
   els.toast.classList.remove("hidden");
   clearTimeout(showToast._t);
   showToast._t = setTimeout(() => els.toast.classList.add("hidden"), 1800);
 }
-function setStatus(msg){ showToast(msg); }
+function setStatus(msg) { showToast(msg); }
 
+/* ---------------- Helpers ---------------- */
 function highlightSeg(segEl, attr, value) {
-  const btns = [...segEl.querySelectorAll(".segBtn")];
-  btns.forEach(b => b.classList.toggle("active", b.getAttribute(attr) === String(value)));
+  if (!segEl) return;
+  [...segEl.querySelectorAll(".segBtn")].forEach(btn => {
+    btn.classList.toggle("active", btn.getAttribute(attr) === String(value));
+  });
 }
 
-/* ---------- 字體 ---------- */
+/* ---------------- Font ---------------- */
 function applyFont(size) {
   const s = (size === "s" || size === "l") ? size : "m";
   document.documentElement.dataset.font = s;
@@ -104,22 +113,24 @@ function applyFont(size) {
   highlightSeg(els.fontSeg, "data-font", s);
 }
 
-/* ---------- 睡眠計時 ---------- */
+/* ---------------- Sleep timer ---------------- */
 function fmtMMSS(ms) {
   const total = Math.max(0, Math.floor(ms / 1000));
   const mm = String(Math.floor(total / 60)).padStart(2, "0");
   const ss = String(total % 60).padStart(2, "0");
   return `${mm}:${ss}`;
 }
-function clearSleepUI(){
+function clearSleepUI() {
   els.sleepPill.classList.add("hidden");
   els.sleepPill.textContent = "⏲ --:--";
   els.sleepHint.textContent = "未啟用";
 }
 function setSleepTimer(minutes) {
   const m = Number(minutes || 0);
+
   if (sleepTick) { clearInterval(sleepTick); sleepTick = null; }
   sleepEndAt = 0;
+
   highlightSeg(els.sleepSeg, "data-sleep", String(m));
 
   if (m <= 0) {
@@ -142,19 +153,20 @@ function setSleepTimer(minutes) {
     }
     els.sleepPill.textContent = `⏲ ${fmtMMSS(remain)}`;
   };
+
   tick();
   sleepTick = setInterval(tick, 1000);
   setStatus(`已設定睡眠計時：${m} 分鐘`);
 }
 
-/* ---------- 進度記憶 ---------- */
+/* ---------------- Progress memory ---------------- */
 function saveProgress() {
   if (!currentBookData?.id || !currentChapter?.id || !segs.length) return;
   const payload = {
     bookId: currentBookData.id,
     chId: currentChapter.id,
     index: Math.max(0, Math.min(currentIndex, segs.length)),
-    at: Date.now()
+    at: Date.now(),
   };
   try { localStorage.setItem(LS.last, JSON.stringify(payload)); } catch {}
 }
@@ -168,25 +180,31 @@ function readProgress() {
   } catch { return null; }
 }
 
-/* ---------- Voice ---------- */
-function getVoices(){ return window.speechSynthesis?.getVoices?.() || []; }
+/* ---------------- Voice ---------------- */
+function getVoices() { return window.speechSynthesis?.getVoices?.() || []; }
+
 function scoreVoice(v, langHint) {
   const name = (v.name || "").toLowerCase();
   const lang = (v.lang || "").toLowerCase();
   const hint = (langHint || "").toLowerCase();
+
   let s = 0;
   if (hint && lang === hint) s += 80;
   if (hint && lang.startsWith(hint.split("-")[0])) s += 40;
+
   if (lang.startsWith("zh-cn")) s += 60;
   if (lang.includes("cmn")) s += 55;
   if (lang.startsWith("zh")) s += 25;
+
   if (name.includes("mandarin") || name.includes("putonghua") || name.includes("普通")) s += 40;
   if (name.includes("enhanced") || name.includes("premium") || name.includes("neural")) s += 8;
   return s;
 }
+
 function populateVoices() {
   const voices = getVoices();
   els.voice.innerHTML = "";
+
   if (!voices.length) {
     const opt = document.createElement("option");
     opt.value = "";
@@ -194,7 +212,8 @@ function populateVoices() {
     els.voice.appendChild(opt);
     return;
   }
-  const sorted = [...voices].sort((a,b)=> scoreVoice(b, els.langHint.value) - scoreVoice(a, els.langHint.value));
+
+  const sorted = [...voices].sort((a, b) => scoreVoice(b, els.langHint.value) - scoreVoice(a, els.langHint.value));
   for (const v of sorted) {
     const opt = document.createElement("option");
     opt.value = v.voiceURI;
@@ -203,12 +222,12 @@ function populateVoices() {
   }
 }
 
-/* ---------- 分段（內部用） ---------- */
+/* ---------------- Segmentation ---------------- */
 function splitTextWithOffsets(text) {
   const normalized = String(text || "").replace(/\r\n/g, "\n");
   const out = [];
   const maxLen = 220;
-  const enders = new Set(["。","！","？","!","?","；",";","…","."]);
+  const enders = new Set(["。", "！", "？", "!", "?", "；", ";", "…", "."]);
   let start = 0;
 
   function pushRange(s, e) {
@@ -216,7 +235,10 @@ function splitTextWithOffsets(text) {
     const t = raw.trim();
     if (!t) return;
 
-    if (t.length <= maxLen) { out.push({ text: t, start: s, end: e }); return; }
+    if (t.length <= maxLen) {
+      out.push({ text: t, start: s, end: e });
+      return;
+    }
 
     const soft = /[，,、\s]+/g;
     let last = 0, m;
@@ -231,80 +253,90 @@ function splitTextWithOffsets(text) {
       const pp = p.trim();
       if (!pp) continue;
       if (pp.length <= maxLen) out.push({ text: pp, start: s, end: e });
-      else for (let i=0;i<pp.length;i+=maxLen) out.push({ text: pp.slice(i, i+maxLen), start: s, end: e });
+      else {
+        for (let i = 0; i < pp.length; i += maxLen) {
+          out.push({ text: pp.slice(i, i + maxLen), start: s, end: e });
+        }
+      }
     }
   }
 
-  for (let i=0;i<normalized.length;i++){
+  for (let i = 0; i < normalized.length; i++) {
     const ch = normalized[i];
     if (ch === "\n") { pushRange(start, i); start = i + 1; continue; }
-    if (enders.has(ch)) { pushRange(start, i+1); start = i + 1; }
+    if (enders.has(ch)) { pushRange(start, i + 1); start = i + 1; }
   }
   pushRange(start, normalized.length);
   return out;
+}
+
+function updateMainButtons() {
+  // stop enabled?
+  els.bbStop.disabled = !(isPlaying || isPaused);
+  els.btnRestart.disabled = !currentChapter || !segs.length;
+
+  // label state
+  let label = "播放";
+  let icon = "▶︎";
+
+  if (!segs.length) {
+    label = "播放";
+    icon = "▶︎";
+  } else if (!isPlaying && !isPaused) {
+    if (currentIndex > 0 && currentIndex < segs.length) label = "續播";
+    else label = "播放";
+    icon = "▶︎";
+  } else if (isPlaying && !isPaused) {
+    label = "暫停";
+    icon = "⏸";
+  } else if (isPlaying && isPaused) {
+    label = "繼續";
+    icon = "▶︎";
+  }
+
+  els.btnMainHero.textContent = label;
+  els.bbMain.querySelector(".bbText").textContent = label;
+  els.bbMain.querySelector(".bbIcon").textContent = icon;
 }
 
 function prepareSegments() {
   const t = els.text.value || "";
   segs = splitTextWithOffsets(t);
   currentIndex = Math.max(0, Math.min(currentIndex, segs.length));
+
   els.metrics.textContent = `字數：${t.length}｜內部分段：${segs.length || 0}`;
   els.progress.textContent = `${Math.min(currentIndex + (isPlaying ? 1 : 0), segs.length)} / ${segs.length}`;
-  els.where.textContent = segs.length ? `位置：${segs[Math.min(currentIndex, segs.length-1)].start}–${segs[Math.min(currentIndex, segs.length-1)].end}` : "—";
-  refreshMainButtons();
-}
 
-/* ---------- 播放控制：單一主按鈕（播放/暫停/繼續） ---------- */
-function setMainButtonUI(label, icon) {
-  // hero
-  els.btnMainHero.textContent = label;
-  // bottom
-  els.bbMain.querySelector(".bbIcon").textContent = icon;
-  els.bbMain.querySelector(".bbText").textContent = label;
-}
-
-function refreshMainButtons() {
-  // stop 按鈕
-  els.bbStop.disabled = !(isPlaying || isPaused);
-
-  // restart 可用
-  els.btnRestart.disabled = !currentChapter || !segs.length;
-
-  // 主按鈕狀態
   if (!segs.length) {
-    setMainButtonUI("播放", "▶︎");
-    return;
+    els.where.textContent = "—";
+  } else {
+    const s = segs[Math.min(currentIndex, segs.length - 1)];
+    els.where.textContent = `位置：${s.start}–${s.end}`;
   }
-  if (!isPlaying && !isPaused) {
-    // 可續播：currentIndex > 0 表示有進度
-    if (currentIndex > 0 && currentIndex < segs.length) setMainButtonUI("續播", "▶︎");
-    else setMainButtonUI("播放", "▶︎");
-    return;
-  }
-  if (isPlaying && !isPaused) {
-    setMainButtonUI("暫停", "⏸");
-    return;
-  }
-  if (isPlaying && isPaused) {
-    setMainButtonUI("繼續", "▶︎");
-    return;
-  }
+
+  updateMainButtons();
 }
 
+/* ---------------- TTS ---------------- */
 function makeUtterance(text) {
   const u = new SpeechSynthesisUtterance(text);
   u.rate = Number(els.rate.value || 1);
   u.volume = Number(els.vol.value || 1);
   u.pitch = Number(els.pitch.value || 1);
+
   const hint = els.langHint.value;
   if (hint) u.lang = hint;
+
   const chosen = getVoices().find(v => v.voiceURI === els.voice.value);
   if (chosen) u.voice = chosen;
   return u;
 }
 
 function speakFrom(index) {
-  if (!("speechSynthesis" in window)) { setStatus("此瀏覽器不支援語音朗讀，建議用 Chrome/Edge。"); return; }
+  if (!("speechSynthesis" in window)) {
+    setStatus("此瀏覽器不支援語音朗讀，建議用 Chrome/Edge。");
+    return;
+  }
   if (!segs.length) prepareSegments();
   if (!segs.length) { setStatus("沒有可朗讀內容"); return; }
 
@@ -313,7 +345,7 @@ function speakFrom(index) {
 
   isPlaying = true;
   isPaused = false;
-  refreshMainButtons();
+  updateMainButtons();
 
   const run = () => {
     if (currentIndex >= segs.length) {
@@ -344,7 +376,7 @@ function pause() {
   window.speechSynthesis.pause();
   isPaused = true;
   saveProgress();
-  refreshMainButtons();
+  updateMainButtons();
   setStatus("已暫停");
 }
 
@@ -353,7 +385,7 @@ function resume() {
   window.speechSynthesis.resume();
   isPaused = false;
   saveProgress();
-  refreshMainButtons();
+  updateMainButtons();
   setStatus("繼續朗讀");
 }
 
@@ -363,7 +395,6 @@ function stop(showMsg = true) {
   isPaused = false;
   utter = null;
   saveProgress();
-  refreshMainButtons();
   prepareSegments();
   if (showMsg) setStatus("已停止");
 }
@@ -382,7 +413,7 @@ function playFromCursor() {
   if (!segs.length) return;
 
   let idx = 0;
-  for (let i=0;i<segs.length;i++){
+  for (let i = 0; i < segs.length; i++) {
     if (cursor >= segs[i].start && cursor <= segs[i].end) { idx = i; break; }
     if (cursor > segs[i].end) idx = i;
   }
@@ -402,17 +433,45 @@ function onMainPressed() {
   if (isPlaying && isPaused) { resume(); return; }
 }
 
-/* ---------- 書庫 Sheet ---------- */
+/* ---------------- Sheet open/close (完整修正) ---------------- */
+function isSheetOpen() {
+  return !els.librarySheet.classList.contains("hidden");
+}
+
 function openSheet(tab = "books") {
   els.sheetBackdrop.classList.remove("hidden");
   els.librarySheet.classList.remove("hidden");
   setTab(tab);
+
+  // 防止背景滾動造成點擊錯位
+  document.body.style.overflow = "hidden";
 }
-function closeSheet(){
+
+function closeSheet() {
   els.sheetBackdrop.classList.add("hidden");
   els.librarySheet.classList.add("hidden");
+
+  document.body.style.overflow = "";
 }
-function setTab(tab){
+
+function toggleSheet(tab = "books") {
+  if (isSheetOpen()) closeSheet();
+  else openSheet(tab);
+}
+
+function bindClose(el) {
+  if (!el) return;
+  const handler = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    closeSheet();
+  };
+  el.addEventListener("pointerdown", handler, { passive: false });
+  el.addEventListener("touchstart", handler, { passive: false });
+  el.addEventListener("click", handler);
+}
+
+function setTab(tab) {
   const isBooks = tab === "books";
   els.tabBooks.classList.toggle("active", isBooks);
   els.tabChapters.classList.toggle("active", !isBooks);
@@ -420,7 +479,7 @@ function setTab(tab){
   els.chapterList.classList.toggle("hidden", isBooks);
 }
 
-/* ---------- Data ---------- */
+/* ---------------- Data loading ---------------- */
 async function fetchJson(path) {
   const res = await fetch(bust(path), { cache: "no-store" });
   if (!res.ok) throw new Error(`JSON讀取失敗：${path}`);
@@ -434,7 +493,10 @@ async function fetchText(path) {
 
 function renderBooks(books) {
   els.bookList.innerHTML = "";
-  if (!books.length) { els.bookList.textContent = "沒有書"; return; }
+  if (!books.length) {
+    els.bookList.textContent = "沒有書";
+    return;
+  }
 
   books.forEach(b => {
     const wrap = document.createElement("div");
@@ -466,9 +528,12 @@ function renderBooks(books) {
 
 function renderChapters(chapters) {
   els.chapterList.innerHTML = "";
-  if (!chapters.length) { els.chapterList.textContent = "此書沒有章節"; return; }
+  if (!chapters.length) {
+    els.chapterList.textContent = "此書沒有章節";
+    return;
+  }
 
-  const sorted = [...chapters].sort((a,b)=> (a.order??0) - (b.order??0));
+  const sorted = [...chapters].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   sorted.forEach(ch => {
     const wrap = document.createElement("div");
     wrap.className = "item";
@@ -496,7 +561,7 @@ function renderChapters(chapters) {
     });
 
     main.addEventListener("click", async () => {
-      await openChapter(ch, { autoplay:false, startIndex:0, restored:false });
+      await openChapter(ch, { autoplay: false, startIndex: 0, restored: false });
       closeSheet();
       setStatus("章節已載入");
     });
@@ -516,7 +581,9 @@ async function openBook(bookMeta) {
   stop(false);
   currentBookMeta = bookMeta;
   currentBookData = await fetchJson(bookMeta.manifest);
+
   renderChapters(currentBookData.chapters || []);
+
   els.heroBook.textContent = currentBookData.title || bookMeta.title || "已選書";
   els.heroChapter.textContent = "請選擇章節";
   els.nowTitle.textContent = currentBookData.title || bookMeta.title || "已選書";
@@ -528,6 +595,7 @@ async function openChapter(ch, { autoplay, startIndex, restored }) {
 
   const bookTitle = currentBookData?.title || currentBookMeta?.title || "書";
   const chTitle = ch.title || ch.id;
+
   els.nowTitle.textContent = `${bookTitle} / ${chTitle}`;
   els.heroBook.textContent = bookTitle;
   els.heroChapter.textContent = chTitle;
@@ -538,10 +606,12 @@ async function openChapter(ch, { autoplay, startIndex, restored }) {
   segs = [];
   currentIndex = Number(startIndex || 0);
   prepareSegments();
+
   currentIndex = Math.max(0, Math.min(currentIndex, Math.max(0, segs.length - 1)));
   saveProgress();
   prepareSegments();
 
+  // 更新 URL（書籤/分享）
   if (currentBookData?.id) {
     const url = new URL(location.href);
     url.searchParams.set("v", BUILD_ID);
@@ -552,10 +622,12 @@ async function openChapter(ch, { autoplay, startIndex, restored }) {
   }
 
   if (restored) setStatus("已恢復上次進度（可按續播）");
+
   if (autoplay) {
     setStatus("已載入文字：請點一下畫面開始朗讀");
     const once = () => speakFrom(0);
     window.addEventListener("pointerdown", once, { once: true });
+    window.addEventListener("touchstart", once, { once: true, passive: true });
   }
 }
 
@@ -574,7 +646,7 @@ async function preloadFromQuery() {
   const ch = (currentBookData?.chapters || []).find(c => c.id === chId);
   if (!ch) { setStatus("找不到指定章節"); return true; }
 
-  await openChapter(ch, { autoplay, startIndex:0, restored:false });
+  await openChapter(ch, { autoplay, startIndex: 0, restored: false });
   return true;
 }
 
@@ -590,10 +662,10 @@ async function restoreLastIfAny() {
   const ch = (currentBookData?.chapters || []).find(c => c.id === last.chId);
   if (!ch) return;
 
-  await openChapter(ch, { autoplay:false, startIndex:Number(last.index||0), restored:true });
+  await openChapter(ch, { autoplay: false, startIndex: Number(last.index || 0), restored: true });
 }
 
-/* ---------- 分享 ---------- */
+/* ---------------- Share ---------------- */
 async function copyShareFor(bookId, chId) {
   if (!bookId || !chId) { alert("請先選一本書並選一個章節。"); return; }
   const url = new URL(location.href);
@@ -604,48 +676,55 @@ async function copyShareFor(bookId, chId) {
   await navigator.clipboard.writeText(url.toString());
   setStatus("已複製播放連結");
 }
+
 async function copyCurrentShare() {
   if (!currentBookData?.id || !currentChapter?.id) {
-    openSheet(currentBookData ? "chapters" : "books");
+    toggleSheet(currentBookData ? "chapters" : "books");
     setStatus("請先選章節，再分享連結");
     return;
   }
   await copyShareFor(currentBookData.id, currentChapter.id);
 }
 
-/* ---------- 綁定 ---------- */
+/* ---------------- Bind ---------------- */
 function bind() {
-  // library open
-  els.btnOpenLibrary.addEventListener("click", ()=>openSheet("books"));
-  els.btnOpenLibrary2.addEventListener("click", ()=>openSheet("books"));
-  els.bbLibrary.addEventListener("click", ()=>openSheet("books"));
+  // sheet open (toggle)
+  els.btnOpenLibrary.addEventListener("click", () => toggleSheet("books"));
+  els.btnOpenLibrary2.addEventListener("click", () => toggleSheet("books"));
+  els.bbLibrary.addEventListener("click", () => toggleSheet("books"));
 
-  // sheet close
-  els.btnCloseLibrary.addEventListener("click", closeSheet);
-  els.sheetBackdrop.addEventListener("click", closeSheet);
-  els.tabBooks.addEventListener("click", ()=>setTab("books"));
-  els.tabChapters.addEventListener("click", ()=>setTab("chapters"));
+  // sheet close (強制 pointerdown/touchstart)
+  bindClose(els.btnCloseLibrary);
+  bindClose(els.btnCloseLibraryBottom);
+  bindClose(els.sheetBackdrop);
+
+  // prevent propagation inside sheet
+  els.librarySheet.addEventListener("pointerdown", (e) => e.stopPropagation());
+  els.librarySheet.addEventListener("touchstart", (e) => e.stopPropagation(), { passive: true });
+
+  // tabs
+  els.tabBooks.addEventListener("click", () => setTab("books"));
+  els.tabChapters.addEventListener("click", () => setTab("chapters"));
 
   // share
   els.btnCopyShareTop.addEventListener("click", copyCurrentShare);
 
-  // main buttons (hero + bottom)
+  // main controls
   els.btnMainHero.addEventListener("click", onMainPressed);
   els.bbMain.addEventListener("click", onMainPressed);
-  els.bbStop.addEventListener("click", ()=>stop(true));
+  els.bbStop.addEventListener("click", () => stop(true));
+  els.btnRestart.addEventListener("click", restartFromHead);
+  els.btnPlayCursor.addEventListener("click", playFromCursor);
 
   // settings shortcut
-  els.bbSettings.addEventListener("click", ()=>{
+  els.bbSettings.addEventListener("click", () => {
     els.settingsPanel.open = true;
-    els.settingsPanel.scrollIntoView({behavior:"smooth", block:"start"});
+    els.settingsPanel.scrollIntoView({ behavior: "smooth", block: "start" });
     setStatus("已打開設定");
   });
 
-  // restart
-  els.btnRestart.addEventListener("click", restartFromHead);
-
   // clear
-  els.btnClear.addEventListener("click", ()=>{
+  els.btnClear.addEventListener("click", () => {
     stop(false);
     if (!confirm("確定清空文字？")) return;
     els.text.value = "";
@@ -656,60 +735,43 @@ function bind() {
     setStatus("已清空");
   });
 
-  // play from cursor
-  els.btnPlayCursor.addEventListener("click", playFromCursor);
-
   // sliders
-  els.rate.addEventListener("input", ()=>els.rateVal.textContent = Number(els.rate.value).toFixed(1));
-  els.vol.addEventListener("input", ()=>els.volVal.textContent = Number(els.vol.value).toFixed(2));
-  els.pitch.addEventListener("input", ()=>els.pitchVal.textContent = Number(els.pitch.value).toFixed(1));
-  els.langHint.addEventListener("change", ()=>populateVoices());
+  els.rate.addEventListener("input", () => els.rateVal.textContent = Number(els.rate.value).toFixed(1));
+  els.vol.addEventListener("input", () => els.volVal.textContent = Number(els.vol.value).toFixed(2));
+  els.pitch.addEventListener("input", () => els.pitchVal.textContent = Number(els.pitch.value).toFixed(1));
+  els.langHint.addEventListener("change", () => populateVoices());
 
   // font seg
-  els.fontSeg.addEventListener("click", (e)=>{
-    const btn = e.target.closest(".segBtn"); if(!btn) return;
+  els.fontSeg.addEventListener("click", (e) => {
+    const btn = e.target.closest(".segBtn");
+    if (!btn) return;
     applyFont(btn.getAttribute("data-font"));
     setStatus("字體已切換");
   });
 
   // sleep seg
-  els.sleepSeg.addEventListener("click", (e)=>{
-    const btn = e.target.closest(".segBtn"); if(!btn) return;
+  els.sleepSeg.addEventListener("click", (e) => {
+    const btn = e.target.closest(".segBtn");
+    if (!btn) return;
     setSleepTimer(btn.getAttribute("data-sleep"));
   });
 
   // text input
-  els.text.addEventListener("input", ()=>{
+  els.text.addEventListener("input", () => {
     segs = [];
     currentIndex = 0;
     prepareSegments();
     saveProgress();
   });
 
-  document.addEventListener("visibilitychange", ()=>{ if (document.hidden) stop(false); });
-  window.addEventListener("beforeunload", ()=>saveProgress());
+  // stop when hidden
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) stop(false);
+  });
+  window.addEventListener("beforeunload", () => saveProgress());
 }
 
-/* ---------- 主按鈕狀態 ---------- */
-function refreshMainButtons() {
-  refreshMainButtons._lock = true;
-  // stop enable
-  els.bbStop.disabled = !(isPlaying || isPaused);
-
-  // hero/bottom main label
-  if (!segs.length) { setMainButtonUI("播放", "▶︎"); refreshMainButtons._lock=false; return; }
-
-  if (!isPlaying && !isPaused) {
-    if (currentIndex > 0 && currentIndex < segs.length) setMainButtonUI("續播", "▶︎");
-    else setMainButtonUI("播放", "▶︎");
-  } else if (isPlaying && !isPaused) {
-    setMainButtonUI("暫停", "⏸");
-  } else if (isPlaying && isPaused) {
-    setMainButtonUI("繼續", "▶︎");
-  }
-  refreshMainButtons._lock=false;
-}
-
+/* ---------------- Init ---------------- */
 async function init() {
   bind();
 
@@ -720,24 +782,26 @@ async function init() {
   highlightSeg(els.sleepSeg, "data-sleep", "0");
   clearSleepUI();
 
+  // init slider labels
   els.rateVal.textContent = Number(els.rate.value).toFixed(1);
   els.volVal.textContent = Number(els.vol.value).toFixed(2);
   els.pitchVal.textContent = Number(els.pitch.value).toFixed(1);
 
-  if (!("speechSynthesis" in window)) setStatus("此瀏覽器不支援語音朗讀，建議用 Chrome/Edge。");
-  else {
+  if (!("speechSynthesis" in window)) {
+    setStatus("此瀏覽器不支援語音朗讀，建議用 Chrome/Edge。");
+  } else {
     populateVoices();
-    window.speechSynthesis.onvoiceschanged = ()=>populateVoices();
+    window.speechSynthesis.onvoiceschanged = () => populateVoices();
   }
 
   await loadLibrary();
 
+  // URL 指定章節優先，否則恢復上次進度
   const handled = await preloadFromQuery();
   if (!handled) await restoreLastIfAny();
 
-  // 初始按鈕狀態
   prepareSegments();
-  refreshMainButtons();
+  updateMainButtons();
 }
 
-init().catch(()=>setStatus("初始化失敗：請檢查檔案路徑與 JSON 格式"));
+init().catch(() => setStatus("初始化失敗：請檢查檔案路徑與 JSON 格式"));
