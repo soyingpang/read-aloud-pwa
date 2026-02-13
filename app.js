@@ -6,7 +6,6 @@ const els = {
   nowTitle: $("nowTitle"),
 
   text: $("text"),
-  btnParse: $("btnParse"),
   btnPlay: $("btnPlay"),
   btnPlayCursor: $("btnPlayCursor"),
   btnPause: $("btnPause"),
@@ -17,8 +16,6 @@ const els = {
 
   status: $("status"),
   metrics: $("metrics"),
-  segments: $("segments"),
-  chkAutoScroll: $("chkAutoScroll"),
 
   voice: $("voice"),
   rate: $("rate"),
@@ -37,7 +34,8 @@ let library = null;
 let currentBook = null;     // {id,title,manifest}
 let currentBookData = null; // book.json content
 let currentChapter = null;  // {id,title,file}
-let segs = [];
+
+let segs = [];              // 內部分段：{text,start,end}
 let currentIndex = 0;
 
 let isPlaying = false;
@@ -56,7 +54,7 @@ function setButtons() {
 
 function updateMetrics() {
   const t = els.text.value || "";
-  els.metrics.textContent = `字數：${t.length}｜段落：${segs.length || 0}`;
+  els.metrics.textContent = `字數：${t.length}｜內部分段：${segs.length || 0}`;
 }
 
 function updateProgress() {
@@ -66,25 +64,11 @@ function updateProgress() {
   els.where.textContent = s ? `字元範圍：${s.start}–${s.end}` : "—";
 }
 
-function scrollActiveIntoView() {
-  if (!els.chkAutoScroll.checked) return;
-  const active = els.segments.querySelector(".seg.active");
-  if (!active) return;
-  active.scrollIntoView({ behavior: "smooth", block: "center" });
-}
-
-function highlightActive() {
-  const nodes = els.segments.querySelectorAll(".seg");
-  nodes.forEach(n => n.classList.remove("active"));
-  const active = els.segments.querySelector(`.seg[data-idx="${currentIndex}"]`);
-  if (active) active.classList.add("active");
-  scrollActiveIntoView();
-}
-
 /* ---------------- Voice handling ---------------- */
 function getVoices() {
   return window.speechSynthesis?.getVoices?.() || [];
 }
+
 function scoreVoice(v, langHint) {
   const name = (v.name || "").toLowerCase();
   const lang = (v.lang || "").toLowerCase();
@@ -103,6 +87,7 @@ function scoreVoice(v, langHint) {
 
   return s;
 }
+
 function populateVoices() {
   const voices = getVoices();
   els.voice.innerHTML = "";
@@ -124,11 +109,11 @@ function populateVoices() {
   }
 }
 
-/* ---------------- Segmentation (long text) ---------------- */
+/* ---------------- Segmentation (internal) ---------------- */
 function splitTextWithOffsets(text) {
   const normalized = String(text || "").replace(/\r\n/g, "\n");
   const out = [];
-  const maxLen = 220;
+  const maxLen = 220; // 安全長度：避免一次朗讀太長而中斷
   const enders = new Set(["。","！","？","!","?","；",";","…","."]);
   let start = 0;
 
@@ -142,6 +127,7 @@ function splitTextWithOffsets(text) {
       return;
     }
 
+    // 先以逗號/空白切，再不行就硬切
     const soft = /[，,、\s]+/g;
     let last = 0, m;
     const parts = [];
@@ -173,44 +159,16 @@ function splitTextWithOffsets(text) {
   return out;
 }
 
-function renderSegments() {
-  if (!segs.length) {
-    els.segments.textContent = "尚未解析";
-    updateProgress();
-    return;
-  }
-  els.segments.innerHTML = "";
-  segs.forEach((s, idx) => {
-    const span = document.createElement("span");
-    span.className = "seg" + (idx === currentIndex ? " active" : "");
-    span.dataset.idx = String(idx);
-    span.textContent = s.text + (idx === segs.length - 1 ? "" : " ");
-    span.addEventListener("click", () => {
-      stop(false);
-      currentIndex = idx;
-      highlightActive();
-      updateProgress();
-      setStatus(`已跳到第 ${idx + 1} 段`);
-    });
-    els.segments.appendChild(span);
-  });
-  scrollActiveIntoView();
-}
-
-function parse() {
+function prepareSegments() {
   const t = els.text.value || "";
   segs = splitTextWithOffsets(t);
-
   if (!segs.length) {
     currentIndex = 0;
     setStatus("沒有可朗讀內容");
   } else {
     currentIndex = Math.min(currentIndex, segs.length - 1);
-    setStatus(`解析完成：共 ${segs.length} 段`);
   }
-
   updateMetrics();
-  renderSegments();
   updateProgress();
 }
 
@@ -235,11 +193,11 @@ function speakFrom(index) {
     setStatus("此瀏覽器不支援語音朗讀，建議用 Chrome/Edge。");
     return;
   }
-  if (!segs.length) parse();
+
+  if (!segs.length) prepareSegments();
   if (!segs.length) return;
 
   currentIndex = Math.max(0, Math.min(index, segs.length - 1));
-  highlightActive();
   updateProgress();
 
   window.speechSynthesis.cancel();
@@ -258,9 +216,8 @@ function speakFrom(index) {
       return;
     }
 
-    highlightActive();
+    setStatus(`朗讀中：${currentIndex + 1} / ${segs.length}`);
     updateProgress();
-    setStatus(`朗讀中：第 ${currentIndex + 1} / ${segs.length} 段`);
 
     utter = makeUtterance(segs[currentIndex].text);
 
@@ -271,6 +228,7 @@ function speakFrom(index) {
     };
 
     utter.onerror = () => {
+      // 跳過錯誤段落避免卡死
       currentIndex += 1;
       run();
     };
@@ -294,7 +252,7 @@ function resume() {
   window.speechSynthesis.resume();
   isPaused = false;
   setButtons();
-  setStatus(`繼續朗讀：第 ${currentIndex + 1} 段`);
+  setStatus(`繼續朗讀：${currentIndex + 1} / ${segs.length}`);
 }
 
 function stop(updateStatus = true) {
@@ -303,14 +261,13 @@ function stop(updateStatus = true) {
   isPaused = false;
   utter = null;
   setButtons();
-  highlightActive();
   updateProgress();
   if (updateStatus) setStatus("已停止");
 }
 
 function playFromCursor() {
   const cursor = els.text.selectionStart ?? 0;
-  if (!segs.length) parse();
+  if (!segs.length) prepareSegments();
   if (!segs.length) return;
 
   let idx = 0;
@@ -321,7 +278,7 @@ function playFromCursor() {
   speakFrom(idx);
 }
 
-/* ---------------- Data loading ---------------- */
+/* ---------------- Data loading (books/chapters) ---------------- */
 async function fetchJson(path) {
   const res = await fetch(path, { cache: "no-store" });
   if (!res.ok) throw new Error(`JSON讀取失敗：${path}`);
@@ -410,9 +367,13 @@ async function loadTextFile(file, autoplay) {
     const text = await res.text();
     els.text.value = text;
 
-    parse();
+    // 載入新章節就重建內部分段
+    segs = [];
+    currentIndex = 0;
+    prepareSegments();
 
     if (autoplay) {
+      // 避免瀏覽器阻擋「無手勢自動出聲」：改成提示 + 第一次點擊開始
       setStatus("已載入文字：請點一下畫面開始朗讀");
       const once = () => speakFrom(0);
       window.addEventListener("pointerdown", once, { once: true });
@@ -496,9 +457,14 @@ async function copyShareLink() {
 
 /* ---------------- Bind UI ---------------- */
 function bind() {
-  els.btnParse.addEventListener("click", parse);
-  els.btnPlay.addEventListener("click", () => speakFrom(0));
-  els.btnPlayCursor.addEventListener("click", playFromCursor);
+  els.btnPlay.addEventListener("click", () => {
+    if (!segs.length) prepareSegments();
+    speakFrom(0);
+  });
+  els.btnPlayCursor.addEventListener("click", () => {
+    if (!segs.length) prepareSegments();
+    playFromCursor();
+  });
   els.btnPause.addEventListener("click", pause);
   els.btnResume.addEventListener("click", resume);
   els.btnStop.addEventListener("click", () => stop(true));
@@ -507,12 +473,11 @@ function bind() {
 
   els.btnClear.addEventListener("click", () => {
     stop(false);
-    if (!confirm("確定清空文字與分段？")) return;
+    if (!confirm("確定清空文字？")) return;
     els.text.value = "";
     segs = [];
     currentIndex = 0;
     els.nowTitle.textContent = "文字";
-    els.segments.textContent = "尚未解析";
     updateMetrics();
     updateProgress();
     setStatus("已清空");
@@ -523,8 +488,14 @@ function bind() {
   els.pitch.addEventListener("input", () => els.pitchVal.textContent = Number(els.pitch.value).toFixed(1));
   els.langHint.addEventListener("change", () => populateVoices());
 
-  els.text.addEventListener("input", updateMetrics);
+  els.text.addEventListener("input", () => {
+    // 手動改文字後，重建內部分段（不顯示預覽，但保持可一路念完）
+    segs = [];
+    currentIndex = 0;
+    prepareSegments();
+  });
 
+  // 切到背景就停止，避免在背景播放造成使用者困擾
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) stop(false);
   });

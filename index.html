@@ -10,17 +10,17 @@
   <header class="topbar">
     <div>
       <div class="brand">我的書庫・章節朗讀</div>
-      <div class="sub">點書 → 點章節載入TXT → 按播放朗讀；分享連結可指定到某一章（載入後點一下開始朗讀）</div>
+      <div class="sub">點書 → 點章節載入TXT → 按播放一路朗讀到章末；可分享章節播放連結（載入後點一下開始朗讀）</div>
     </div>
     <div class="row">
-      <button id="btnClear" class="btn ghost" title="清空文字與分段">清空</button>
+      <button id="btnClear" class="btn ghost" title="清空文字">清空</button>
     </div>
   </header>
 
   <main class="container">
     <section class="card">
       <h2>書與章節</h2>
-      <p class="hint">你可以用連結直接開到某一章：<code>?book=about-face-3&ch=ch-01&autoplay=1</code></p>
+      <p class="hint">可用連結直接開到某一章：<code>?book=about-face-3&ch=ch-01&autoplay=1</code></p>
 
       <div class="twoCol">
         <div>
@@ -41,7 +41,6 @@
       <textarea id="text" placeholder="點章節後會載入文字；你也可以自行貼上文字"></textarea>
 
       <div class="row mt12">
-        <button id="btnParse" class="btn">解析 / 分段</button>
         <button id="btnPlay" class="btn primary">播放（從頭）</button>
         <button id="btnPlayCursor" class="btn">播放（從游標）</button>
         <button id="btnPause" class="btn" disabled>暫停</button>
@@ -55,9 +54,9 @@
       </div>
 
       <div class="row mt10">
-        <span id="metrics" class="metrics">字數：0｜段落：0</span>
+        <span id="metrics" class="metrics">字數：0｜內部分段：0</span>
         <div class="spacer"></div>
-        <label class="chk"><input type="checkbox" id="chkAutoScroll" checked /> 自動捲動高亮</label>
+        <div class="metrics" id="progress">0 / 0</div>
       </div>
     </section>
 
@@ -96,18 +95,12 @@
         </div>
 
         <div class="field">
-          <label>進度</label>
+          <label>目前位置</label>
           <div class="panel mini">
-            <div id="progress">0 / 0</div>
             <div id="where" class="tiny">—</div>
           </div>
         </div>
       </div>
-    </section>
-
-    <section class="card">
-      <h2>分段預覽（可點段落跳讀）</h2>
-      <div id="segments" class="panel">尚未解析</div>
     </section>
 
     <footer class="footer">此頁使用瀏覽器內建語音朗讀（無MP3下載）。</footer>
