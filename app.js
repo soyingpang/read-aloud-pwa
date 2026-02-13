@@ -1,6 +1,10 @@
 const $ = (id) => document.getElementById(id);
 
 const els = {
+  bookList: $("bookList"),
+  chapterList: $("chapterList"),
+  nowTitle: $("nowTitle"),
+
   text: $("text"),
   btnParse: $("btnParse"),
   btnPlay: $("btnPlay"),
@@ -10,6 +14,7 @@ const els = {
   btnStop: $("btnStop"),
   btnClear: $("btnClear"),
   btnCopyShare: $("btnCopyShare"),
+
   status: $("status"),
   metrics: $("metrics"),
   segments: $("segments"),
@@ -28,8 +33,11 @@ const els = {
   where: $("where"),
 };
 
-let currentFile = ""; // 目前載入的 TXT 檔案路徑（用於複製分享連結）
-let segs = [];        // 分段結果：{text,start,end}
+let library = null;
+let currentBook = null;     // {id,title,manifest}
+let currentBookData = null; // book.json content
+let currentChapter = null;  // {id,title,file}
+let segs = [];
 let currentIndex = 0;
 
 let isPlaying = false;
@@ -77,7 +85,6 @@ function highlightActive() {
 function getVoices() {
   return window.speechSynthesis?.getVoices?.() || [];
 }
-
 function scoreVoice(v, langHint) {
   const name = (v.name || "").toLowerCase();
   const lang = (v.lang || "").toLowerCase();
@@ -96,11 +103,9 @@ function scoreVoice(v, langHint) {
 
   return s;
 }
-
 function populateVoices() {
   const voices = getVoices();
   els.voice.innerHTML = "";
-
   if (!voices.length) {
     const opt = document.createElement("option");
     opt.value = "";
@@ -108,11 +113,9 @@ function populateVoices() {
     els.voice.appendChild(opt);
     return;
   }
-
   const sorted = [...voices].sort(
     (a, b) => scoreVoice(b, els.langHint.value) - scoreVoice(a, els.langHint.value)
   );
-
   for (const v of sorted) {
     const opt = document.createElement("option");
     opt.value = v.voiceURI;
@@ -125,7 +128,7 @@ function populateVoices() {
 function splitTextWithOffsets(text) {
   const normalized = String(text || "").replace(/\r\n/g, "\n");
   const out = [];
-  const maxLen = 220; // 安全分段長度
+  const maxLen = 220;
   const enders = new Set(["。","！","？","!","?","；",";","…","."]);
   let start = 0;
 
@@ -139,7 +142,6 @@ function splitTextWithOffsets(text) {
       return;
     }
 
-    // 先用較柔性的分隔符（逗號/空白）切，再不行就硬切
     const soft = /[，,、\s]+/g;
     let last = 0, m;
     const parts = [];
@@ -177,7 +179,6 @@ function renderSegments() {
     updateProgress();
     return;
   }
-
   els.segments.innerHTML = "";
   segs.forEach((s, idx) => {
     const span = document.createElement("span");
@@ -193,7 +194,6 @@ function renderSegments() {
     });
     els.segments.appendChild(span);
   });
-
   scrollActiveIntoView();
 }
 
@@ -271,7 +271,6 @@ function speakFrom(index) {
     };
 
     utter.onerror = () => {
-      // 跳過錯誤段落避免卡死
       currentIndex += 1;
       run();
     };
@@ -322,7 +321,87 @@ function playFromCursor() {
   speakFrom(idx);
 }
 
-/* ---------------- Load TXT & query preload ---------------- */
+/* ---------------- Data loading ---------------- */
+async function fetchJson(path) {
+  const res = await fetch(path, { cache: "no-store" });
+  if (!res.ok) throw new Error(`JSON讀取失敗：${path}`);
+  return await res.json();
+}
+
+async function loadLibrary() {
+  library = await fetchJson("texts/library.json");
+  renderBookList(library.books || []);
+}
+
+function renderBookList(books) {
+  els.bookList.innerHTML = "";
+  if (!books.length) {
+    els.bookList.textContent = "沒有書";
+    return;
+  }
+
+  books.forEach(b => {
+    const row = document.createElement("div");
+    row.className = "itemRow";
+
+    const main = document.createElement("div");
+    main.className = "itemMain";
+    main.textContent = b.title || b.id;
+    main.addEventListener("click", () => openBook(b));
+
+    row.appendChild(main);
+    els.bookList.appendChild(row);
+  });
+}
+
+async function openBook(bookMeta) {
+  stop(false);
+  currentBook = bookMeta;
+  currentBookData = await fetchJson(bookMeta.manifest);
+
+  renderChapterList(currentBookData.chapters || []);
+  els.chapterList.classList.remove("mutedBox");
+  setStatus(`已載入：${currentBookData.title || currentBook.title}`);
+}
+
+function renderChapterList(chapters) {
+  els.chapterList.innerHTML = "";
+  if (!chapters.length) {
+    els.chapterList.textContent = "此書沒有章節";
+    return;
+  }
+
+  const sorted = [...chapters].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+
+  sorted.forEach(ch => {
+    const row = document.createElement("div");
+    row.className = "itemRow";
+
+    const main = document.createElement("div");
+    main.className = "itemMain";
+    main.textContent = ch.title || ch.id;
+    main.addEventListener("click", () => openChapter(ch));
+
+    const share = document.createElement("button");
+    share.className = "btn";
+    share.textContent = "播放連結";
+    share.addEventListener("click", async () => {
+      if (!currentBookData?.id) return;
+      const url = new URL(location.href);
+      url.searchParams.set("book", currentBookData.id);
+      url.searchParams.set("ch", ch.id);
+      url.searchParams.set("autoplay", "1");
+      url.searchParams.delete("file");
+      await navigator.clipboard.writeText(url.toString());
+      setStatus("已複製播放連結");
+    });
+
+    row.appendChild(main);
+    row.appendChild(share);
+    els.chapterList.appendChild(row);
+  });
+}
+
 async function loadTextFile(file, autoplay) {
   try {
     const res = await fetch(file, { cache: "no-store" });
@@ -330,12 +409,10 @@ async function loadTextFile(file, autoplay) {
 
     const text = await res.text();
     els.text.value = text;
-    currentFile = file;
 
     parse();
 
     if (autoplay) {
-      // 避免瀏覽器阻擋「無手勢自動出聲」：改成提示 + 第一次點擊開始
       setStatus("已載入文字：請點一下畫面開始朗讀");
       const once = () => speakFrom(0);
       window.addEventListener("pointerdown", once, { once: true });
@@ -347,78 +424,74 @@ async function loadTextFile(file, autoplay) {
   }
 }
 
+async function openChapter(ch) {
+  stop(false);
+  currentChapter = ch;
+
+  const bookTitle = currentBookData?.title || currentBook?.title || "書";
+  const chTitle = ch.title || ch.id;
+  els.nowTitle.textContent = `${bookTitle} / ${chTitle}`;
+
+  await loadTextFile(ch.file, false);
+
+  // 更新網址（可書籤/可分享）
+  if (currentBookData?.id) {
+    const url = new URL(location.href);
+    url.searchParams.set("book", currentBookData.id);
+    url.searchParams.set("ch", ch.id);
+    url.searchParams.delete("autoplay");
+    url.searchParams.delete("file");
+    history.replaceState({}, "", url);
+  }
+}
+
 async function preloadFromQuery() {
   const params = new URLSearchParams(location.search);
+
+  // 兼容舊模式：?file=xxx.txt&autoplay=1
   const file = params.get("file");
+  if (file) {
+    const autoplay = params.get("autoplay") === "1";
+    await loadTextFile(file, autoplay);
+    return;
+  }
+
+  // 新模式：?book=...&ch=...&autoplay=1
+  const bookId = params.get("book");
+  const chId = params.get("ch");
   const autoplay = params.get("autoplay") === "1";
-  if (!file) return;
-  await loadTextFile(file, autoplay);
+
+  if (!bookId || !chId) return;
+  if (!library) await loadLibrary();
+
+  const bookMeta = (library.books || []).find(b => b.id === bookId);
+  if (!bookMeta) { setStatus("找不到指定書"); return; }
+
+  await openBook(bookMeta);
+
+  const ch = (currentBookData?.chapters || []).find(c => c.id === chId);
+  if (!ch) { setStatus("找不到指定章節"); return; }
+
+  currentChapter = ch;
+  const bookTitle = currentBookData?.title || bookMeta.title || "書";
+  const chTitle = ch.title || ch.id;
+  els.nowTitle.textContent = `${bookTitle} / ${chTitle}`;
+
+  await loadTextFile(ch.file, autoplay);
 }
 
 async function copyShareLink() {
-  if (!currentFile) {
-    alert("目前不是從檔案載入，無法產生播放連結。請先從「我的書」點選載入TXT。");
+  if (!currentBookData?.id || !currentChapter?.id) {
+    alert("請先選一本書並選一個章節，才能複製章節播放連結。");
     return;
   }
   const url = new URL(location.href);
-  url.searchParams.set("file", currentFile);
+  url.searchParams.set("book", currentBookData.id);
+  url.searchParams.set("ch", currentChapter.id);
   url.searchParams.set("autoplay", "1");
+  url.searchParams.delete("file");
   await navigator.clipboard.writeText(url.toString());
-  setStatus("已複製播放連結");
-}
-
-/* ---------------- Book list from texts/library.json ---------------- */
-async function loadBookList() {
-  const container = document.getElementById("bookList");
-  if (!container) return;
-
-  try {
-    const res = await fetch("texts/library.json", { cache: "no-store" });
-    if (!res.ok) throw new Error("no manifest");
-    const lib = await res.json();
-    const books = lib.books || [];
-
-    container.innerHTML = "";
-
-    books.forEach(b => {
-      const row = document.createElement("div");
-      row.className = "bookItem";
-
-      const title = document.createElement("div");
-      title.className = "bookTitle";
-      title.textContent = b.title || b.id || b.file;
-
-      title.addEventListener("click", async () => {
-        stop(false);
-        await loadTextFile(b.file, false);
-
-        // 更新網址（方便書籤/也方便你手動複製）
-        const url = new URL(location.href);
-        url.searchParams.set("file", b.file);
-        url.searchParams.delete("autoplay");
-        history.replaceState({}, "", url);
-      });
-
-      const linkBtn = document.createElement("button");
-      linkBtn.className = "btn";
-      linkBtn.textContent = "播放連結";
-      linkBtn.addEventListener("click", async () => {
-        const url = new URL(location.href);
-        url.searchParams.set("file", b.file);
-        url.searchParams.set("autoplay", "1");
-        await navigator.clipboard.writeText(url.toString());
-        setStatus("已複製播放連結");
-      });
-
-      row.appendChild(title);
-      row.appendChild(linkBtn);
-      container.appendChild(row);
-    });
-
-    if (!books.length) container.textContent = "尚未新增書單。";
-  } catch {
-    container.textContent = "找不到 texts/library.json，請先建立書單檔。";
-  }
+  setStatus("已複製章節播放連結");
 }
 
 /* ---------------- Bind UI ---------------- */
@@ -436,9 +509,9 @@ function bind() {
     stop(false);
     if (!confirm("確定清空文字與分段？")) return;
     els.text.value = "";
-    currentFile = "";
     segs = [];
     currentIndex = 0;
+    els.nowTitle.textContent = "文字";
     els.segments.textContent = "尚未解析";
     updateMetrics();
     updateProgress();
@@ -450,15 +523,14 @@ function bind() {
   els.pitch.addEventListener("input", () => els.pitchVal.textContent = Number(els.pitch.value).toFixed(1));
   els.langHint.addEventListener("change", () => populateVoices());
 
-  els.text.addEventListener("input", () => updateMetrics());
+  els.text.addEventListener("input", updateMetrics);
 
-  // 切到背景就停止，避免在背景播放造成使用者困擾
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) stop(false);
   });
 }
 
-function init() {
+async function init() {
   bind();
 
   els.rateVal.textContent = Number(els.rate.value).toFixed(1);
@@ -476,8 +548,8 @@ function init() {
   updateProgress();
   setButtons();
 
-  loadBookList();
-  preloadFromQuery();
+  await loadLibrary();
+  await preloadFromQuery();
 }
 
-init();
+init().catch(() => setStatus("初始化失敗：請檢查檔案路徑與JSON格式"));

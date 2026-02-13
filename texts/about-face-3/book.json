@@ -1,0 +1,18 @@
+{
+  "id": "about-face-3",
+  "title": "About Face 3: The Essentials of Interaction Design",
+  "chapters": [
+    {
+      "id": "ch-01",
+      "order": 1,
+      "title": "Chapter 1",
+      "file": "texts/about-face-3/chapters/ch-01.txt"
+    },
+    {
+      "id": "ch-02",
+      "order": 2,
+      "title": "Chapter 2",
+      "file": "texts/about-face-3/chapters/ch-02.txt"
+    }
+  ]
+}

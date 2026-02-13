@@ -104,10 +104,9 @@ select, input[type="range"]{
 .footer{color:rgba(148,163,184,.85); font-size:12px; text-align:center; padding:6px 0 18px}
 code{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;}
 
-/* 書單樣式 */
 .list{display:flex; flex-direction:column; gap:8px}
-.bookItem{display:flex; gap:10px; align-items:center; flex-wrap:wrap}
-.bookTitle{
+.itemRow{display:flex; gap:10px; align-items:center; flex-wrap:wrap}
+.itemMain{
   padding:10px 12px;
   border-radius:12px;
   border:1px solid rgba(148,163,184,.14);
@@ -115,4 +114,8 @@ code{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Libera
   cursor:pointer;
   flex:1;
 }
-.bookTitle:hover{border-color:rgba(148,163,184,.35)}
+.itemMain:hover{border-color:rgba(148,163,184,.35)}
+.sectionTitle{font-size:12px; color:var(--muted); margin:0 0 8px 0}
+.twoCol{display:grid; grid-template-columns:1fr 1fr; gap:12px}
+@media (max-width: 900px){ .twoCol{grid-template-columns:1fr} }
+.mutedBox{color:var(--muted)}

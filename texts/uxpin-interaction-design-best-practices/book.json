@@ -1,0 +1,12 @@
+{
+  "id": "uxpin-interaction-design-best-practices",
+  "title": "UXPin — Interaction Design Best Practices",
+  "chapters": [
+    {
+      "id": "ch-01",
+      "order": 1,
+      "title": "Introduction",
+      "file": "texts/uxpin-interaction-design-best-practices/chapters/ch-01.txt"
+    }
+  ]
+}

@@ -3,14 +3,14 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>我的書庫・文字朗讀</title>
+  <title>我的書庫・章節朗讀</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <header class="topbar">
     <div>
-      <div class="brand">我的書庫・文字朗讀</div>
-      <div class="sub">首頁列出書籍 → 點書名載入TXT → 按播放朗讀；可分享播放連結（自動載入，點一下開始朗讀）</div>
+      <div class="brand">我的書庫・章節朗讀</div>
+      <div class="sub">點書 → 點章節載入TXT → 按播放朗讀；分享連結可指定到某一章（載入後點一下開始朗讀）</div>
     </div>
     <div class="row">
       <button id="btnClear" class="btn ghost" title="清空文字與分段">清空</button>
@@ -19,18 +19,26 @@
 
   <main class="container">
     <section class="card">
-      <h2>我的書</h2>
-      <p class="hint">點書名會載入對應TXT；按「播放連結」會複製可分享網址（朋友打開後會載入，點一下開始朗讀）。</p>
-      <div id="bookList" class="list">載入中…</div>
+      <h2>書與章節</h2>
+      <p class="hint">你可以用連結直接開到某一章：<code>?book=about-face-3&ch=ch-01&autoplay=1</code></p>
+
+      <div class="twoCol">
+        <div>
+          <div class="sectionTitle">書</div>
+          <div id="bookList" class="list">載入中…</div>
+        </div>
+
+        <div>
+          <div class="sectionTitle">章節</div>
+          <div id="chapterList" class="list mutedBox">請先選一本書</div>
+        </div>
+      </div>
     </section>
 
     <section class="card">
-      <h2>文字</h2>
-      <p class="hint">
-        你也可以直接用連結開啟指定檔案：<code>?file=texts/xxx.txt&autoplay=1</code>
-      </p>
+      <h2 id="nowTitle">文字</h2>
 
-      <textarea id="text" placeholder="可直接貼上文字，或從書單載入TXT"></textarea>
+      <textarea id="text" placeholder="點章節後會載入文字；你也可以自行貼上文字"></textarea>
 
       <div class="row mt12">
         <button id="btnParse" class="btn">解析 / 分段</button>
@@ -42,7 +50,7 @@
 
         <div class="spacer"></div>
 
-        <button id="btnCopyShare" class="btn">複製播放連結（目前檔案）</button>
+        <button id="btnCopyShare" class="btn">複製章節播放連結</button>
         <span id="status" class="status">就緒</span>
       </div>
 

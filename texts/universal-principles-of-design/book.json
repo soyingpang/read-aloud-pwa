@@ -1,0 +1,12 @@
+{
+  "id": "universal-principles-of-design",
+  "title": "Universal Principles of Design",
+  "chapters": [
+    {
+      "id": "ch-01",
+      "order": 1,
+      "title": "Chapter 1",
+      "file": "texts/universal-principles-of-design/chapters/ch-01.txt"
+    }
+  ]
+}
