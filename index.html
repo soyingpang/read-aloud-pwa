@@ -4,98 +4,123 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="theme-color" content="#111827" />
-  <title>讀書朗讀 PWA</title>
+  <title>自建聽書書庫</title>
   <link rel="manifest" href="manifest.json" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 
 <body>
   <header class="topbar">
-    <div class="brand">
+    <div class="brand" role="button" tabindex="0" id="goHome">
       <div class="dot"></div>
       <div>
-        <div class="title">讀書朗讀</div>
-        <div class="subtitle">免安裝・普通話朗讀・進度同步</div>
+        <div class="title">自建聽書書庫</div>
+        <div class="subtitle">公開分享・串流播放・可下載・續聽進度</div>
       </div>
     </div>
+
     <div class="actions">
       <button id="btnInstall" class="btn ghost" hidden>安裝</button>
-      <button id="btnClear" class="btn ghost" title="清除本機資料">清除</button>
+      <button id="btnClearProgress" class="btn ghost" title="清除本機續聽進度">清除進度</button>
     </div>
   </header>
 
   <main class="container">
-    <section class="card">
-      <h2>匯入文字</h2>
-      <p class="hint">貼上內容後按「解析」。系統會分句並可逐句高亮朗讀。</p>
-      <textarea id="inputText" placeholder="把文字貼在這裡…（支援中英混排）"></textarea>
-
+    <!-- Library View -->
+    <section class="card" id="viewLibrary">
       <div class="row">
-        <button id="btnParse" class="btn primary">解析</button>
-        <button id="btnLoadSample" class="btn">載入範例</button>
-
+        <div>
+          <h2>書庫</h2>
+          <p class="hint">點選書籍進入章節（課）列表；播放頁可分享給其他人。</p>
+        </div>
         <div class="spacer"></div>
-
-        <label class="toggle">
-          <input type="checkbox" id="chkAutoScroll" checked />
-          <span>自動捲動</span>
-        </label>
+        <input id="searchInput" class="input" placeholder="搜尋書名 / 作者 / 標籤…" />
       </div>
+
+      <div id="libraryGrid" class="gridCards"></div>
+      <div id="libraryEmpty" class="emptyState" hidden>目前沒有書籍。請先在 <code>data/library.json</code> 新增條目。</div>
     </section>
 
-    <section class="card">
-      <h2>播放控制</h2>
-
-      <div class="controls">
-        <button id="btnPrev" class="btn">上一句</button>
-        <button id="btnPlay" class="btn primary">播放</button>
-        <button id="btnPause" class="btn" disabled>暫停</button>
-        <button id="btnStop" class="btn" disabled>停止</button>
-        <button id="btnNext" class="btn">下一句</button>
+    <!-- Book View -->
+    <section class="card" id="viewBook" hidden>
+      <div class="row">
+        <button class="btn" id="btnBackToLibrary">返回書庫</button>
+        <div class="spacer"></div>
+        <button class="btn ghost" id="btnShareBook">分享本書</button>
       </div>
 
-      <div class="grid">
-        <div class="field">
-          <label for="voiceSelect">聲線（普通話優先）</label>
-          <select id="voiceSelect"></select>
-          <div class="small">提示：部分瀏覽器語音列表需稍等才會出現。</div>
-        </div>
+      <div class="bookHeader">
+        <div class="cover" id="bookCover"></div>
+        <div class="bookMeta">
+          <h2 id="bookTitle">—</h2>
+          <div class="metaLine" id="bookAuthor">—</div>
+          <div class="metaLine muted" id="bookLicense">—</div>
+          <p class="desc" id="bookDesc">—</p>
 
-        <div class="field">
-          <label for="rate">語速：<span id="rateVal">1.0</span>x</label>
-          <input id="rate" type="range" min="0.6" max="1.6" step="0.1" value="1.0" />
-          <div class="small">建議 0.9–1.2x</div>
-        </div>
-
-        <div class="field">
-          <label>進度</label>
-          <div class="progress">
-            <div class="bar"><div id="barFill" class="fill" style="width:0%"></div></div>
-            <div class="small"><span id="progressText">0 / 0</span></div>
+          <div class="row">
+            <a id="bookSource" class="link" href="#" target="_blank" rel="noreferrer">內容來源</a>
+            <a id="bookPDF" class="link" href="#" target="_blank" rel="noreferrer" hidden>PDF</a>
+            <div class="spacer"></div>
+            <button class="btn primary" id="btnResume">從上次續聽</button>
           </div>
         </div>
       </div>
 
+      <h3 class="sectionTitle">章節（課）</h3>
+      <div id="chapterList" class="list"></div>
+    </section>
+
+    <!-- Listen View -->
+    <section class="card" id="viewListen" hidden>
       <div class="row">
-        <button id="btnBookmark" class="btn">加入書籤</button>
-        <select id="bookmarkSelect" class="select" title="書籤列表">
-          <option value="">書籤（點選跳轉）</option>
-        </select>
-        <button id="btnRemoveBookmark" class="btn ghost">移除選取書籤</button>
-
+        <button class="btn" id="btnBackToBook">返回章節</button>
         <div class="spacer"></div>
+        <button class="btn ghost" id="btnShareChapter">分享本章</button>
+      </div>
 
-        <span id="status" class="status">就緒</span>
+      <div class="listenHeader">
+        <div class="pill" id="listenBook">—</div>
+        <h2 id="listenTitle">—</h2>
+        <div class="metaLine muted" id="listenMeta">—</div>
+      </div>
+
+      <div class="playerCard">
+        <audio id="audio" preload="metadata" controls></audio>
+
+        <div class="playerControls">
+          <button class="btn" id="btnPrevChapter">上一章</button>
+          <button class="btn" id="btnNextChapter">下一章</button>
+
+          <div class="spacer"></div>
+
+          <label class="fieldInline">
+            <span class="muted">倍速</span>
+            <select id="speedSelect" class="select compact">
+              <option value="0.75">0.75x</option>
+              <option value="1" selected>1.0x</option>
+              <option value="1.25">1.25x</option>
+              <option value="1.5">1.5x</option>
+              <option value="2">2.0x</option>
+            </select>
+          </label>
+
+          <a id="downloadLink" class="btn ghost" href="#" download>下載 MP3</a>
+        </div>
+
+        <div class="row">
+          <div class="status" id="playStatus">就緒</div>
+          <div class="spacer"></div>
+          <div class="muted small" id="progressHint">會自動記錄續聽位置（此裝置）。</div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="muted small">分享連結可直接帶到本章播放頁。</div>
       </div>
     </section>
 
-    <section class="card">
-      <h2>閱讀內容（點句子可跳到該句）</h2>
-      <div id="reader" class="reader empty">尚未解析內容</div>
-    </section>
-
     <footer class="footer">
-      <span>本機儲存：文字、書籤、進度會存於你的瀏覽器（localStorage）。</span>
+      <span>公開書庫（無登入）。續聽進度僅保存在你的瀏覽器。</span>
     </footer>
   </main>
 

@@ -1,10 +1,11 @@
-const CACHE_NAME = "read-aloud-pwa-cache-v1";
+const CACHE_NAME = "audio-library-cache-v2";
 const ASSETS = [
   "./",
   "./index.html",
   "./styles.css",
   "./app.js",
-  "./manifest.json"
+  "./manifest.json",
+  "./data/library.json"
 ];
 
 self.addEventListener("install", (event) => {
@@ -26,8 +27,8 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   event.respondWith(
     caches.match(event.request).then((cached) => {
+      // cache-first for app/json; audio 仍走網路（避免巨大快取）
       return cached || fetch(event.request).then((res) => {
-        // 動態快取（可選）
         const copy = res.clone();
         caches.open(CACHE_NAME).then(cache => cache.put(event.request, copy)).catch(()=>{});
         return res;

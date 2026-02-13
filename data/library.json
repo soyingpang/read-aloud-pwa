@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "updatedAt": "2026-02-13",
+  "books": [
+    {
+      "id": "book-001",
+      "title": "示範書：公版內容（請換成你的書名）",
+      "author": "Public Domain",
+      "language": "zh",
+      "description": "這是示範用的書籍資料。你可以把章節（很多課）放在 book.json，音檔用 audioUrl 指向你的 MP3。",
+      "license": "Public Domain",
+      "sourceUrl": "https://example.com/source",
+      "coverUrl": "",
+      "tags": ["公版", "示範"],
+      "bookJsonPath": "./data/books/book-001/book.json"
+    }
+  ]
+}
