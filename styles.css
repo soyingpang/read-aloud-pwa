@@ -1,0 +1,170 @@
+:root{
+  --bg:#0b1220;
+  --card:#111827;
+  --muted:#94a3b8;
+  --text:#e5e7eb;
+  --border:#243244;
+  --primary:#3b82f6;
+  --primary2:#2563eb;
+  --ok:#22c55e;
+  --warn:#f59e0b;
+  --danger:#ef4444;
+  --chip:#0f172a;
+}
+
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Noto Sans TC", "PingFang TC", sans-serif;
+  background:
+    radial-gradient(1200px 600px at 20% -10%, rgba(59,130,246,.25), transparent 55%),
+    radial-gradient(900px 500px at 90% 0%, rgba(34,197,94,.18), transparent 55%),
+    var(--bg);
+  color:var(--text);
+}
+
+.topbar{
+  position:sticky; top:0; z-index:10;
+  display:flex; justify-content:space-between; align-items:center;
+  padding:14px 18px;
+  border-bottom:1px solid rgba(148,163,184,.15);
+  background: rgba(11,18,32,.78);
+  backdrop-filter: blur(10px);
+}
+.brand{display:flex; gap:12px; align-items:center}
+.dot{width:12px; height:12px; border-radius:50%; background: var(--primary)}
+.title{font-weight:800; letter-spacing:.2px}
+.subtitle{font-size:12px; color:var(--muted); margin-top:2px}
+.actions{display:flex; gap:8px}
+
+.container{
+  max-width:1100px;
+  margin:0 auto;
+  padding:18px;
+  display:flex;
+  flex-direction:column;
+  gap:16px;
+}
+
+.card{
+  background: rgba(17,24,39,.88);
+  border:1px solid rgba(148,163,184,.14);
+  border-radius:16px;
+  padding:16px;
+  box-shadow: 0 10px 30px rgba(0,0,0,.25);
+}
+.card h2{margin:0 0 8px 0; font-size:16px}
+.hint{margin:0 0 10px 0; color:var(--muted); font-size:13px; line-height:1.5}
+
+textarea{
+  width:100%;
+  min-height:160px;
+  resize:vertical;
+  padding:12px 12px;
+  border-radius:12px;
+  border:1px solid rgba(148,163,184,.18);
+  background:#0b1220;
+  color:var(--text);
+  outline:none;
+  line-height:1.6;
+}
+textarea:focus{border-color:rgba(59,130,246,.65); box-shadow:0 0 0 4px rgba(59,130,246,.12)}
+
+.row{display:flex; align-items:center; gap:10px; margin-top:12px; flex-wrap:wrap}
+.spacer{flex:1}
+
+.btn{
+  border:1px solid rgba(148,163,184,.18);
+  background:#0f172a;
+  color:var(--text);
+  padding:10px 12px;
+  border-radius:12px;
+  cursor:pointer;
+  font-weight:650;
+}
+.btn:hover{border-color:rgba(148,163,184,.35)}
+.btn:disabled{opacity:.55; cursor:not-allowed}
+.btn.primary{
+  background:linear-gradient(180deg, var(--primary), var(--primary2));
+  border-color:rgba(59,130,246,.35);
+}
+.btn.ghost{background:transparent}
+
+.controls{display:flex; gap:10px; flex-wrap:wrap; margin:8px 0 14px}
+
+.grid{
+  display:grid;
+  grid-template-columns: 1.2fr 1fr 1fr;
+  gap:12px;
+}
+@media (max-width: 860px){
+  .grid{grid-template-columns:1fr}
+}
+
+.field label{display:block; font-size:13px; color:var(--muted); margin-bottom:6px}
+.field .small{font-size:12px; color:var(--muted); margin-top:6px}
+select, .select{
+  width:100%;
+  padding:10px 12px;
+  border-radius:12px;
+  border:1px solid rgba(148,163,184,.18);
+  background:#0b1220;
+  color:var(--text);
+  outline:none;
+}
+input[type="range"]{width:100%}
+
+.progress .bar{
+  width:100%;
+  height:12px;
+  border-radius:999px;
+  background: rgba(148,163,184,.12);
+  border:1px solid rgba(148,163,184,.14);
+  overflow:hidden;
+}
+.progress .fill{
+  height:100%;
+  border-radius:999px;
+  background: linear-gradient(90deg, rgba(34,197,94,.9), rgba(59,130,246,.9));
+}
+
+.status{
+  font-size:12px;
+  color:var(--muted);
+  padding:6px 10px;
+  border:1px solid rgba(148,163,184,.16);
+  border-radius:999px;
+  background: rgba(15,23,42,.5);
+}
+
+.toggle{display:flex; gap:8px; align-items:center; user-select:none; color:var(--muted); font-size:13px}
+.toggle input{transform: translateY(1px)}
+
+.reader{
+  background:#0b1220;
+  border:1px solid rgba(148,163,184,.14);
+  border-radius:14px;
+  padding:12px;
+  min-height:140px;
+  line-height:1.9;
+}
+.reader.empty{color:var(--muted)}
+.sentence{
+  display:inline;
+  padding:2px 4px;
+  border-radius:8px;
+  cursor:pointer;
+}
+.sentence:hover{background: rgba(148,163,184,.10)}
+.sentence.active{
+  background: rgba(59,130,246,.22);
+  outline: 1px solid rgba(59,130,246,.35);
+}
+
+.footer{
+  color:rgba(148,163,184,.85);
+  font-size:12px;
+  text-align:center;
+  padding:6px 0 18px;
+}

@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#111827" />
+  <title>讀書朗讀 PWA</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="dot"></div>
+      <div>
+        <div class="title">讀書朗讀</div>
+        <div class="subtitle">免安裝・普通話朗讀・進度同步</div>
+      </div>
+    </div>
+    <div class="actions">
+      <button id="btnInstall" class="btn ghost" hidden>安裝</button>
+      <button id="btnClear" class="btn ghost" title="清除本機資料">清除</button>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="card">
+      <h2>匯入文字</h2>
+      <p class="hint">貼上內容後按「解析」。系統會分句並可逐句高亮朗讀。</p>
+      <textarea id="inputText" placeholder="把文字貼在這裡…（支援中英混排）"></textarea>
+
+      <div class="row">
+        <button id="btnParse" class="btn primary">解析</button>
+        <button id="btnLoadSample" class="btn">載入範例</button>
+
+        <div class="spacer"></div>
+
+        <label class="toggle">
+          <input type="checkbox" id="chkAutoScroll" checked />
+          <span>自動捲動</span>
+        </label>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>播放控制</h2>
+
+      <div class="controls">
+        <button id="btnPrev" class="btn">上一句</button>
+        <button id="btnPlay" class="btn primary">播放</button>
+        <button id="btnPause" class="btn" disabled>暫停</button>
+        <button id="btnStop" class="btn" disabled>停止</button>
+        <button id="btnNext" class="btn">下一句</button>
+      </div>
+
+      <div class="grid">
+        <div class="field">
+          <label for="voiceSelect">聲線（普通話優先）</label>
+          <select id="voiceSelect"></select>
+          <div class="small">提示：部分瀏覽器語音列表需稍等才會出現。</div>
+        </div>
+
+        <div class="field">
+          <label for="rate">語速：<span id="rateVal">1.0</span>x</label>
+          <input id="rate" type="range" min="0.6" max="1.6" step="0.1" value="1.0" />
+          <div class="small">建議 0.9–1.2x</div>
+        </div>
+
+        <div class="field">
+          <label>進度</label>
+          <div class="progress">
+            <div class="bar"><div id="barFill" class="fill" style="width:0%"></div></div>
+            <div class="small"><span id="progressText">0 / 0</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row">
+        <button id="btnBookmark" class="btn">加入書籤</button>
+        <select id="bookmarkSelect" class="select" title="書籤列表">
+          <option value="">書籤（點選跳轉）</option>
+        </select>
+        <button id="btnRemoveBookmark" class="btn ghost">移除選取書籤</button>
+
+        <div class="spacer"></div>
+
+        <span id="status" class="status">就緒</span>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>閱讀內容（點句子可跳到該句）</h2>
+      <div id="reader" class="reader empty">尚未解析內容</div>
+    </section>
+
+    <footer class="footer">
+      <span>本機儲存：文字、書籤、進度會存於你的瀏覽器（localStorage）。</span>
+    </footer>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
