@@ -22,15 +22,38 @@ const els = {
   where: $("where"),
 
   text: $("text"),
-  textPanel: $("textPanel"),
   btnClear: $("btnClear"),
+  btnPlayCursor: $("btnPlayCursor"),
   btnRestart: $("btnRestart"),
 
-  btnPlay: $("btnPlay"),
-  btnPause: $("btnPause"),
-  btnResume: $("btnResume"),
-  btnStop: $("btnStop"),
+  settingsPanel: $("settingsPanel"),
 
+  // hero main
+  btnMainHero: $("btnMainHero"),
+  btnOpenLibrary: $("btnOpenLibrary"),
+  btnOpenLibrary2: $("btnOpenLibrary2"),
+  btnCopyShareTop: $("btnCopyShareTop"),
+
+  // bottom bar
+  bbLibrary: $("bbLibrary"),
+  bbMain: $("bbMain"),
+  bbStop: $("bbStop"),
+  bbSettings: $("bbSettings"),
+
+  // sheet
+  sheetBackdrop: $("sheetBackdrop"),
+  librarySheet: $("librarySheet"),
+  btnCloseLibrary: $("btnCloseLibrary"),
+  tabBooks: $("tabBooks"),
+  tabChapters: $("tabChapters"),
+  bookList: $("bookList"),
+  chapterList: $("chapterList"),
+
+  // segmented
+  fontSeg: $("fontSeg"),
+  sleepSeg: $("sleepSeg"),
+
+  // voice
   voice: $("voice"),
   rate: $("rate"),
   rateVal: $("rateVal"),
@@ -40,21 +63,8 @@ const els = {
   pitchVal: $("pitchVal"),
   langHint: $("langHint"),
 
-  fontSeg: $("fontSeg"),
-  sleepSeg: $("sleepSeg"),
-
-  btnOpenLibrary: $("btnOpenLibrary"),
-  btnOpenLibrary2: $("btnOpenLibrary2"),
-  btnCloseLibrary: $("btnCloseLibrary"),
-  btnCopyShareTop: $("btnCopyShareTop"),
-  sheetBackdrop: $("sheetBackdrop"),
-  librarySheet: $("librarySheet"),
-  tabBooks: $("tabBooks"),
-  tabChapters: $("tabChapters"),
-  bookList: $("bookList"),
-  chapterList: $("chapterList"),
-
-  toast: $("toast")
+  // toast
+  toast: $("toast"),
 };
 
 let library = null;
@@ -69,7 +79,7 @@ let isPlaying = false;
 let isPaused = false;
 let utter = null;
 
-// sleep timer state
+// sleep timer
 let sleepEndAt = 0;
 let sleepTick = null;
 
@@ -77,38 +87,16 @@ function showToast(msg) {
   els.toast.textContent = msg;
   els.toast.classList.remove("hidden");
   clearTimeout(showToast._t);
-  showToast._t = setTimeout(() => els.toast.classList.add("hidden"), 2000);
+  showToast._t = setTimeout(() => els.toast.classList.add("hidden"), 1800);
 }
-function setStatus(msg) { showToast(msg); }
+function setStatus(msg){ showToast(msg); }
 
-function setButtons() {
-  els.btnPause.disabled = !isPlaying || isPaused;
-  els.btnResume.disabled = !isPlaying || !isPaused;
-  els.btnStop.disabled = !isPlaying && !isPaused;
-  els.btnPlay.disabled = isPlaying && !isPaused;
-  els.btnRestart.disabled = !currentChapter || segs.length === 0;
-  updatePlayLabel();
+function highlightSeg(segEl, attr, value) {
+  const btns = [...segEl.querySelectorAll(".segBtn")];
+  btns.forEach(b => b.classList.toggle("active", b.getAttribute(attr) === String(value)));
 }
 
-function updatePlayLabel() {
-  if (!segs.length) { els.btnPlay.textContent = "播放"; return; }
-  if (currentIndex > 0 && currentIndex < segs.length) els.btnPlay.textContent = "續播";
-  else els.btnPlay.textContent = "播放";
-}
-
-function updateMetrics() {
-  const t = els.text.value || "";
-  els.metrics.textContent = `字數：${t.length}｜內部分段：${segs.length || 0}`;
-}
-
-function updateProgress() {
-  els.progress.textContent = `${Math.min(currentIndex + (isPlaying ? 1 : 0), segs.length)} / ${segs.length}`;
-  if (!segs.length) { els.where.textContent = "—"; return; }
-  const s = segs[Math.min(currentIndex, segs.length - 1)];
-  els.where.textContent = s ? `位置：${s.start}–${s.end}` : "—";
-}
-
-/* ---------------- 字體大小 ---------------- */
+/* ---------- 字體 ---------- */
 function applyFont(size) {
   const s = (size === "s" || size === "l") ? size : "m";
   document.documentElement.dataset.font = s;
@@ -116,39 +104,26 @@ function applyFont(size) {
   highlightSeg(els.fontSeg, "data-font", s);
 }
 
-function highlightSeg(segEl, attr, value) {
-  if (!segEl) return;
-  const btns = [...segEl.querySelectorAll(".segBtn")];
-  btns.forEach(b => b.classList.toggle("active", b.getAttribute(attr) === String(value)));
-}
-
-/* ---------------- 睡眠計時 ---------------- */
+/* ---------- 睡眠計時 ---------- */
 function fmtMMSS(ms) {
   const total = Math.max(0, Math.floor(ms / 1000));
   const mm = String(Math.floor(total / 60)).padStart(2, "0");
   const ss = String(total % 60).padStart(2, "0");
   return `${mm}:${ss}`;
 }
-
-function clearSleepTimerUI() {
+function clearSleepUI(){
   els.sleepPill.classList.add("hidden");
   els.sleepPill.textContent = "⏲ --:--";
   els.sleepHint.textContent = "未啟用";
 }
-
 function setSleepTimer(minutes) {
   const m = Number(minutes || 0);
-
-  if (sleepTick) {
-    clearInterval(sleepTick);
-    sleepTick = null;
-  }
+  if (sleepTick) { clearInterval(sleepTick); sleepTick = null; }
   sleepEndAt = 0;
-
   highlightSeg(els.sleepSeg, "data-sleep", String(m));
 
   if (m <= 0) {
-    clearSleepTimerUI();
+    clearSleepUI();
     setStatus("已關閉睡眠計時");
     return;
   }
@@ -160,7 +135,6 @@ function setSleepTimer(minutes) {
   const tick = () => {
     const remain = sleepEndAt - Date.now();
     if (remain <= 0) {
-      // 到點：停止播放 + 關閉計時
       stop(false);
       setStatus("睡眠計時到：已停止");
       setSleepTimer(0);
@@ -168,13 +142,12 @@ function setSleepTimer(minutes) {
     }
     els.sleepPill.textContent = `⏲ ${fmtMMSS(remain)}`;
   };
-
   tick();
   sleepTick = setInterval(tick, 1000);
   setStatus(`已設定睡眠計時：${m} 分鐘`);
 }
 
-/* ---------------- 進度記憶（章節+位置） ---------------- */
+/* ---------- 進度記憶 ---------- */
 function saveProgress() {
   if (!currentBookData?.id || !currentChapter?.id || !segs.length) return;
   const payload = {
@@ -185,7 +158,6 @@ function saveProgress() {
   };
   try { localStorage.setItem(LS.last, JSON.stringify(payload)); } catch {}
 }
-
 function readProgress() {
   try {
     const raw = localStorage.getItem(LS.last);
@@ -196,8 +168,8 @@ function readProgress() {
   } catch { return null; }
 }
 
-/* -------- Voice -------- */
-function getVoices() { return window.speechSynthesis?.getVoices?.() || []; }
+/* ---------- Voice ---------- */
+function getVoices(){ return window.speechSynthesis?.getVoices?.() || []; }
 function scoreVoice(v, langHint) {
   const name = (v.name || "").toLowerCase();
   const lang = (v.lang || "").toLowerCase();
@@ -222,7 +194,7 @@ function populateVoices() {
     els.voice.appendChild(opt);
     return;
   }
-  const sorted = [...voices].sort((a, b) => scoreVoice(b, els.langHint.value) - scoreVoice(a, els.langHint.value));
+  const sorted = [...voices].sort((a,b)=> scoreVoice(b, els.langHint.value) - scoreVoice(a, els.langHint.value));
   for (const v of sorted) {
     const opt = document.createElement("option");
     opt.value = v.voiceURI;
@@ -231,7 +203,7 @@ function populateVoices() {
   }
 }
 
-/* -------- Internal segmentation -------- */
+/* ---------- 分段（內部用） ---------- */
 function splitTextWithOffsets(text) {
   const normalized = String(text || "").replace(/\r\n/g, "\n");
   const out = [];
@@ -244,10 +216,7 @@ function splitTextWithOffsets(text) {
     const t = raw.trim();
     if (!t) return;
 
-    if (t.length <= maxLen) {
-      out.push({ text: t, start: s, end: e });
-      return;
-    }
+    if (t.length <= maxLen) { out.push({ text: t, start: s, end: e }); return; }
 
     const soft = /[，,、\s]+/g;
     let last = 0, m;
@@ -262,18 +231,14 @@ function splitTextWithOffsets(text) {
       const pp = p.trim();
       if (!pp) continue;
       if (pp.length <= maxLen) out.push({ text: pp, start: s, end: e });
-      else {
-        for (let i = 0; i < pp.length; i += maxLen) {
-          out.push({ text: pp.slice(i, i + maxLen), start: s, end: e });
-        }
-      }
+      else for (let i=0;i<pp.length;i+=maxLen) out.push({ text: pp.slice(i, i+maxLen), start: s, end: e });
     }
   }
 
-  for (let i = 0; i < normalized.length; i++) {
+  for (let i=0;i<normalized.length;i++){
     const ch = normalized[i];
     if (ch === "\n") { pushRange(start, i); start = i + 1; continue; }
-    if (enders.has(ch)) { pushRange(start, i + 1); start = i + 1; }
+    if (enders.has(ch)) { pushRange(start, i+1); start = i + 1; }
   }
   pushRange(start, normalized.length);
   return out;
@@ -283,12 +248,49 @@ function prepareSegments() {
   const t = els.text.value || "";
   segs = splitTextWithOffsets(t);
   currentIndex = Math.max(0, Math.min(currentIndex, segs.length));
-  updateMetrics();
-  updateProgress();
-  setButtons();
+  els.metrics.textContent = `字數：${t.length}｜內部分段：${segs.length || 0}`;
+  els.progress.textContent = `${Math.min(currentIndex + (isPlaying ? 1 : 0), segs.length)} / ${segs.length}`;
+  els.where.textContent = segs.length ? `位置：${segs[Math.min(currentIndex, segs.length-1)].start}–${segs[Math.min(currentIndex, segs.length-1)].end}` : "—";
+  refreshMainButtons();
 }
 
-/* -------- TTS -------- */
+/* ---------- 播放控制：單一主按鈕（播放/暫停/繼續） ---------- */
+function setMainButtonUI(label, icon) {
+  // hero
+  els.btnMainHero.textContent = label;
+  // bottom
+  els.bbMain.querySelector(".bbIcon").textContent = icon;
+  els.bbMain.querySelector(".bbText").textContent = label;
+}
+
+function refreshMainButtons() {
+  // stop 按鈕
+  els.bbStop.disabled = !(isPlaying || isPaused);
+
+  // restart 可用
+  els.btnRestart.disabled = !currentChapter || !segs.length;
+
+  // 主按鈕狀態
+  if (!segs.length) {
+    setMainButtonUI("播放", "▶︎");
+    return;
+  }
+  if (!isPlaying && !isPaused) {
+    // 可續播：currentIndex > 0 表示有進度
+    if (currentIndex > 0 && currentIndex < segs.length) setMainButtonUI("續播", "▶︎");
+    else setMainButtonUI("播放", "▶︎");
+    return;
+  }
+  if (isPlaying && !isPaused) {
+    setMainButtonUI("暫停", "⏸");
+    return;
+  }
+  if (isPlaying && isPaused) {
+    setMainButtonUI("繼續", "▶︎");
+    return;
+  }
+}
+
 function makeUtterance(text) {
   const u = new SpeechSynthesisUtterance(text);
   u.rate = Number(els.rate.value || 1);
@@ -303,41 +305,33 @@ function makeUtterance(text) {
 
 function speakFrom(index) {
   if (!("speechSynthesis" in window)) { setStatus("此瀏覽器不支援語音朗讀，建議用 Chrome/Edge。"); return; }
-
   if (!segs.length) prepareSegments();
   if (!segs.length) { setStatus("沒有可朗讀內容"); return; }
 
   currentIndex = Math.max(0, Math.min(index, segs.length - 1));
-  updateProgress();
-
   window.speechSynthesis.cancel();
 
   isPlaying = true;
   isPaused = false;
-  setButtons();
+  refreshMainButtons();
 
   const run = () => {
     if (currentIndex >= segs.length) {
       isPlaying = false;
       isPaused = false;
-      setButtons();
-      setStatus("已朗讀完畢");
-      // 朗讀完畢後，把位置回到 0，避免下次續播卡在尾端
       currentIndex = 0;
       saveProgress();
-      updateProgress();
-      setButtons();
+      prepareSegments();
+      setStatus("已朗讀完畢");
       return;
     }
 
-    // 每段開始就存進度（即使中途重整也能續）
     saveProgress();
-    updateProgress();
+    prepareSegments();
 
     utter = makeUtterance(segs[currentIndex].text);
     utter.onend = () => { if (isPlaying) { currentIndex += 1; run(); } };
     utter.onerror = () => { currentIndex += 1; run(); };
-
     window.speechSynthesis.speak(utter);
   };
 
@@ -346,20 +340,20 @@ function speakFrom(index) {
 }
 
 function pause() {
-  if (!isPlaying) return;
+  if (!isPlaying || isPaused) return;
   window.speechSynthesis.pause();
   isPaused = true;
   saveProgress();
-  setButtons();
+  refreshMainButtons();
   setStatus("已暫停");
 }
 
 function resume() {
-  if (!isPlaying) return;
+  if (!isPlaying || !isPaused) return;
   window.speechSynthesis.resume();
   isPaused = false;
   saveProgress();
-  setButtons();
+  refreshMainButtons();
   setStatus("繼續朗讀");
 }
 
@@ -369,8 +363,8 @@ function stop(showMsg = true) {
   isPaused = false;
   utter = null;
   saveProgress();
-  setButtons();
-  updateProgress();
+  refreshMainButtons();
+  prepareSegments();
   if (showMsg) setStatus("已停止");
 }
 
@@ -378,22 +372,47 @@ function restartFromHead() {
   if (!segs.length) prepareSegments();
   currentIndex = 0;
   saveProgress();
-  updateProgress();
-  setButtons();
+  prepareSegments();
   setStatus("已回到開頭");
 }
 
-/* -------- Sheet UI -------- */
+function playFromCursor() {
+  const cursor = els.text.selectionStart ?? 0;
+  if (!segs.length) prepareSegments();
+  if (!segs.length) return;
+
+  let idx = 0;
+  for (let i=0;i<segs.length;i++){
+    if (cursor >= segs[i].start && cursor <= segs[i].end) { idx = i; break; }
+    if (cursor > segs[i].end) idx = i;
+  }
+  speakFrom(idx);
+}
+
+function onMainPressed() {
+  if (!segs.length) prepareSegments();
+  if (!segs.length) { setStatus("請先載入章節或貼上文字"); return; }
+
+  if (!isPlaying && !isPaused) {
+    const start = (currentIndex >= segs.length) ? 0 : currentIndex;
+    speakFrom(start);
+    return;
+  }
+  if (isPlaying && !isPaused) { pause(); return; }
+  if (isPlaying && isPaused) { resume(); return; }
+}
+
+/* ---------- 書庫 Sheet ---------- */
 function openSheet(tab = "books") {
   els.sheetBackdrop.classList.remove("hidden");
   els.librarySheet.classList.remove("hidden");
   setTab(tab);
 }
-function closeSheet() {
+function closeSheet(){
   els.sheetBackdrop.classList.add("hidden");
   els.librarySheet.classList.add("hidden");
 }
-function setTab(tab) {
+function setTab(tab){
   const isBooks = tab === "books";
   els.tabBooks.classList.toggle("active", isBooks);
   els.tabChapters.classList.toggle("active", !isBooks);
@@ -401,7 +420,7 @@ function setTab(tab) {
   els.chapterList.classList.toggle("hidden", isBooks);
 }
 
-/* -------- Data loading -------- */
+/* ---------- Data ---------- */
 async function fetchJson(path) {
   const res = await fetch(bust(path), { cache: "no-store" });
   if (!res.ok) throw new Error(`JSON讀取失敗：${path}`);
@@ -449,7 +468,7 @@ function renderChapters(chapters) {
   els.chapterList.innerHTML = "";
   if (!chapters.length) { els.chapterList.textContent = "此書沒有章節"; return; }
 
-  const sorted = [...chapters].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  const sorted = [...chapters].sort((a,b)=> (a.order??0) - (b.order??0));
   sorted.forEach(ch => {
     const wrap = document.createElement("div");
     wrap.className = "item";
@@ -463,7 +482,7 @@ function renderChapters(chapters) {
 
     const sub = document.createElement("div");
     sub.className = "itemSub";
-    sub.textContent = "點選載入，底部可播放/續播";
+    sub.textContent = "點選載入；底部可播放/暫停/繼續";
 
     main.appendChild(title);
     main.appendChild(sub);
@@ -477,7 +496,7 @@ function renderChapters(chapters) {
     });
 
     main.addEventListener("click", async () => {
-      await openChapter(ch, { autoplay: false, startIndex: 0, restored: false });
+      await openChapter(ch, { autoplay:false, startIndex:0, restored:false });
       closeSheet();
       setStatus("章節已載入");
     });
@@ -501,7 +520,6 @@ async function openBook(bookMeta) {
   els.heroBook.textContent = currentBookData.title || bookMeta.title || "已選書";
   els.heroChapter.textContent = "請選擇章節";
   els.nowTitle.textContent = currentBookData.title || bookMeta.title || "已選書";
-  els.btnRestart.disabled = true;
 }
 
 async function openChapter(ch, { autoplay, startIndex, restored }) {
@@ -510,7 +528,6 @@ async function openChapter(ch, { autoplay, startIndex, restored }) {
 
   const bookTitle = currentBookData?.title || currentBookMeta?.title || "書";
   const chTitle = ch.title || ch.id;
-
   els.nowTitle.textContent = `${bookTitle} / ${chTitle}`;
   els.heroBook.textContent = bookTitle;
   els.heroChapter.textContent = chTitle;
@@ -522,27 +539,22 @@ async function openChapter(ch, { autoplay, startIndex, restored }) {
   currentIndex = Number(startIndex || 0);
   prepareSegments();
   currentIndex = Math.max(0, Math.min(currentIndex, Math.max(0, segs.length - 1)));
-  updateProgress();
   saveProgress();
-  setButtons();
+  prepareSegments();
 
-  // 更新網址（可書籤/分享）
   if (currentBookData?.id) {
     const url = new URL(location.href);
     url.searchParams.set("v", BUILD_ID);
     url.searchParams.set("book", currentBookData.id);
     url.searchParams.set("ch", ch.id);
     url.searchParams.delete("autoplay");
-    url.searchParams.delete("file");
     history.replaceState({}, "", url);
   }
 
-  els.btnRestart.disabled = false;
-
-  if (restored) setStatus("已恢復上次進度，按「續播」開始");
+  if (restored) setStatus("已恢復上次進度（可按續播）");
   if (autoplay) {
     setStatus("已載入文字：請點一下畫面開始朗讀");
-    const once = () => speakFrom(0); // 分享連結預設從頭播
+    const once = () => speakFrom(0);
     window.addEventListener("pointerdown", once, { once: true });
   }
 }
@@ -552,7 +564,6 @@ async function preloadFromQuery() {
   const bookId = params.get("book");
   const chId = params.get("ch");
   const autoplay = params.get("autoplay") === "1";
-
   if (!bookId || !chId) return false;
 
   if (!library) await loadLibrary();
@@ -560,11 +571,10 @@ async function preloadFromQuery() {
   if (!bookMeta) { setStatus("找不到指定書"); return true; }
 
   await openBook(bookMeta);
-
   const ch = (currentBookData?.chapters || []).find(c => c.id === chId);
   if (!ch) { setStatus("找不到指定章節"); return true; }
 
-  await openChapter(ch, { autoplay, startIndex: 0, restored: false });
+  await openChapter(ch, { autoplay, startIndex:0, restored:false });
   return true;
 }
 
@@ -580,10 +590,10 @@ async function restoreLastIfAny() {
   const ch = (currentBookData?.chapters || []).find(c => c.id === last.chId);
   if (!ch) return;
 
-  await openChapter(ch, { autoplay: false, startIndex: Number(last.index || 0), restored: true });
+  await openChapter(ch, { autoplay:false, startIndex:Number(last.index||0), restored:true });
 }
 
-/* -------- Share -------- */
+/* ---------- 分享 ---------- */
 async function copyShareFor(bookId, chId) {
   if (!bookId || !chId) { alert("請先選一本書並選一個章節。"); return; }
   const url = new URL(location.href);
@@ -591,11 +601,9 @@ async function copyShareFor(bookId, chId) {
   url.searchParams.set("book", bookId);
   url.searchParams.set("ch", chId);
   url.searchParams.set("autoplay", "1");
-  url.searchParams.delete("file");
   await navigator.clipboard.writeText(url.toString());
   setStatus("已複製播放連結");
 }
-
 async function copyCurrentShare() {
   if (!currentBookData?.id || !currentChapter?.id) {
     openSheet(currentBookData ? "chapters" : "books");
@@ -605,117 +613,131 @@ async function copyCurrentShare() {
   await copyShareFor(currentBookData.id, currentChapter.id);
 }
 
-/* -------- Bind -------- */
+/* ---------- 綁定 ---------- */
 function bind() {
-  // Sheet
-  els.btnOpenLibrary.addEventListener("click", () => openSheet("books"));
-  els.btnOpenLibrary2.addEventListener("click", () => openSheet("books"));
+  // library open
+  els.btnOpenLibrary.addEventListener("click", ()=>openSheet("books"));
+  els.btnOpenLibrary2.addEventListener("click", ()=>openSheet("books"));
+  els.bbLibrary.addEventListener("click", ()=>openSheet("books"));
+
+  // sheet close
   els.btnCloseLibrary.addEventListener("click", closeSheet);
   els.sheetBackdrop.addEventListener("click", closeSheet);
-  els.tabBooks.addEventListener("click", () => setTab("books"));
-  els.tabChapters.addEventListener("click", () => setTab("chapters"));
+  els.tabBooks.addEventListener("click", ()=>setTab("books"));
+  els.tabChapters.addEventListener("click", ()=>setTab("chapters"));
 
-  // Share
+  // share
   els.btnCopyShareTop.addEventListener("click", copyCurrentShare);
 
-  // Player
-  els.btnPlay.addEventListener("click", () => {
-    if (!segs.length) prepareSegments();
-    // 續播：從 currentIndex 開始；若在尾端就從頭
-    const start = (currentIndex >= segs.length) ? 0 : currentIndex;
-    speakFrom(start);
-  });
-  els.btnPause.addEventListener("click", pause);
-  els.btnResume.addEventListener("click", resume);
-  els.btnStop.addEventListener("click", () => stop(true));
+  // main buttons (hero + bottom)
+  els.btnMainHero.addEventListener("click", onMainPressed);
+  els.bbMain.addEventListener("click", onMainPressed);
+  els.bbStop.addEventListener("click", ()=>stop(true));
 
-  // Restart
+  // settings shortcut
+  els.bbSettings.addEventListener("click", ()=>{
+    els.settingsPanel.open = true;
+    els.settingsPanel.scrollIntoView({behavior:"smooth", block:"start"});
+    setStatus("已打開設定");
+  });
+
+  // restart
   els.btnRestart.addEventListener("click", restartFromHead);
 
-  // Clear
-  els.btnClear.addEventListener("click", () => {
+  // clear
+  els.btnClear.addEventListener("click", ()=>{
     stop(false);
     if (!confirm("確定清空文字？")) return;
     els.text.value = "";
     segs = [];
     currentIndex = 0;
-    updateMetrics();
-    updateProgress();
-    setButtons();
+    saveProgress();
+    prepareSegments();
     setStatus("已清空");
   });
 
-  // Settings
-  els.rate.addEventListener("input", () => els.rateVal.textContent = Number(els.rate.value).toFixed(1));
-  els.vol.addEventListener("input", () => els.volVal.textContent = Number(els.vol.value).toFixed(2));
-  els.pitch.addEventListener("input", () => els.pitchVal.textContent = Number(els.pitch.value).toFixed(1));
-  els.langHint.addEventListener("change", () => populateVoices());
+  // play from cursor
+  els.btnPlayCursor.addEventListener("click", playFromCursor);
 
-  // Font seg
-  els.fontSeg.addEventListener("click", (e) => {
-    const btn = e.target.closest(".segBtn");
-    if (!btn) return;
-    const font = btn.getAttribute("data-font");
-    applyFont(font);
-    setStatus(`字體已切換：${font === "s" ? "小" : font === "l" ? "大" : "中"}`);
+  // sliders
+  els.rate.addEventListener("input", ()=>els.rateVal.textContent = Number(els.rate.value).toFixed(1));
+  els.vol.addEventListener("input", ()=>els.volVal.textContent = Number(els.vol.value).toFixed(2));
+  els.pitch.addEventListener("input", ()=>els.pitchVal.textContent = Number(els.pitch.value).toFixed(1));
+  els.langHint.addEventListener("change", ()=>populateVoices());
+
+  // font seg
+  els.fontSeg.addEventListener("click", (e)=>{
+    const btn = e.target.closest(".segBtn"); if(!btn) return;
+    applyFont(btn.getAttribute("data-font"));
+    setStatus("字體已切換");
   });
 
-  // Sleep seg
-  els.sleepSeg.addEventListener("click", (e) => {
-    const btn = e.target.closest(".segBtn");
-    if (!btn) return;
-    const m = btn.getAttribute("data-sleep");
-    setSleepTimer(m);
+  // sleep seg
+  els.sleepSeg.addEventListener("click", (e)=>{
+    const btn = e.target.closest(".segBtn"); if(!btn) return;
+    setSleepTimer(btn.getAttribute("data-sleep"));
   });
 
-  // Text input
-  els.text.addEventListener("input", () => {
+  // text input
+  els.text.addEventListener("input", ()=>{
     segs = [];
     currentIndex = 0;
     prepareSegments();
     saveProgress();
   });
 
-  // Background stop
-  document.addEventListener("visibilitychange", () => {
-    if (document.hidden) stop(false);
-  });
+  document.addEventListener("visibilitychange", ()=>{ if (document.hidden) stop(false); });
+  window.addEventListener("beforeunload", ()=>saveProgress());
+}
 
-  // Before unload save
-  window.addEventListener("beforeunload", () => saveProgress());
+/* ---------- 主按鈕狀態 ---------- */
+function refreshMainButtons() {
+  refreshMainButtons._lock = true;
+  // stop enable
+  els.bbStop.disabled = !(isPlaying || isPaused);
+
+  // hero/bottom main label
+  if (!segs.length) { setMainButtonUI("播放", "▶︎"); refreshMainButtons._lock=false; return; }
+
+  if (!isPlaying && !isPaused) {
+    if (currentIndex > 0 && currentIndex < segs.length) setMainButtonUI("續播", "▶︎");
+    else setMainButtonUI("播放", "▶︎");
+  } else if (isPlaying && !isPaused) {
+    setMainButtonUI("暫停", "⏸");
+  } else if (isPlaying && isPaused) {
+    setMainButtonUI("繼續", "▶︎");
+  }
+  refreshMainButtons._lock=false;
 }
 
 async function init() {
   bind();
 
-  // font restore
-  const f = localStorage.getItem(LS.font) || "m";
-  applyFont(f);
+  // restore font
+  applyFont(localStorage.getItem(LS.font) || "m");
 
-  // sleep default off
+  // init sleep
   highlightSeg(els.sleepSeg, "data-sleep", "0");
-  clearSleepTimerUI();
+  clearSleepUI();
 
   els.rateVal.textContent = Number(els.rate.value).toFixed(1);
   els.volVal.textContent = Number(els.vol.value).toFixed(2);
   els.pitchVal.textContent = Number(els.pitch.value).toFixed(1);
 
-  if (!("speechSynthesis" in window)) {
-    setStatus("此瀏覽器不支援語音朗讀，建議用 Chrome/Edge。");
-  } else {
+  if (!("speechSynthesis" in window)) setStatus("此瀏覽器不支援語音朗讀，建議用 Chrome/Edge。");
+  else {
     populateVoices();
-    window.speechSynthesis.onvoiceschanged = () => populateVoices();
+    window.speechSynthesis.onvoiceschanged = ()=>populateVoices();
   }
-
-  updateMetrics();
-  updateProgress();
-  setButtons();
 
   await loadLibrary();
 
-  // 如果 URL 指定章節，就以 URL 為準；否則恢復上次進度
   const handled = await preloadFromQuery();
   if (!handled) await restoreLastIfAny();
+
+  // 初始按鈕狀態
+  prepareSegments();
+  refreshMainButtons();
 }
 
-init().catch(() => setStatus("初始化失敗：請檢查檔案路徑與 JSON 格式"));
+init().catch(()=>setStatus("初始化失敗：請檢查檔案路徑與 JSON 格式"));

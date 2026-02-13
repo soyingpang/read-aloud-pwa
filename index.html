@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>我的書庫・章節朗讀</title>
 
-  <!-- 每次更新章節/JSON/TXT，改這個版本號即可（例如 2026-02-13-2） -->
+  <!-- 每次更新章節/JSON/TXT，改這個版本號即可 -->
   <script>
-    window.BUILD_ID = "2026-02-13-1";
+    window.BUILD_ID = "2026-02-13-2";
   </script>
 
   <link id="cssMain" rel="stylesheet" href="" />
@@ -17,7 +17,7 @@
 </head>
 
 <body>
-  <!-- 頂部 App Bar（手機優先） -->
+  <!-- 頂部 App Bar -->
   <header class="appbar">
     <button id="btnOpenLibrary" class="iconBtn" aria-label="打開書庫">
       <span class="icon">📚</span>
@@ -36,15 +36,17 @@
   </header>
 
   <main class="page">
-    <!-- 章節提示卡 -->
+    <!-- 主要操作卡：手機一打開就見到按鈕（雙保險之一） -->
     <section class="card hero">
-      <div class="heroRow">
-        <div class="heroText">
-          <div class="heroTitle" id="heroBook">請先選擇書籍與章節</div>
-          <div class="heroSub" id="heroChapter">支援連結直達：?book=about-face-3&ch=ch-01&autoplay=1</div>
-        </div>
-        <div class="heroActions">
-          <button id="btnOpenLibrary2" class="btn primary">選書/選章</button>
+      <div class="heroText">
+        <div class="heroTitle" id="heroBook">請先選擇書籍與章節</div>
+        <div class="heroSub" id="heroChapter">支援連結直達：?book=about-face-3&ch=ch-01&autoplay=1</div>
+      </div>
+
+      <div class="heroActions">
+        <button id="btnMainHero" class="btn primary big">播放</button>
+        <div class="heroRow2">
+          <button id="btnOpenLibrary2" class="btn">選書/選章</button>
           <button id="btnRestart" class="btn ghost" disabled>從頭</button>
         </div>
       </div>
@@ -56,7 +58,7 @@
       </div>
     </section>
 
-    <!-- 文字區（可收合） -->
+    <!-- 文字區 -->
     <section class="card">
       <details id="textPanel" open>
         <summary class="summary">
@@ -68,6 +70,7 @@
 
         <div class="row mt10">
           <button id="btnClear" class="btn ghost">清空文字</button>
+          <button id="btnPlayCursor" class="btn">從游標播放</button>
           <div class="spacer"></div>
           <span id="where" class="smallMuted">—</span>
         </div>
@@ -76,7 +79,7 @@
 
     <!-- 設定（收合） -->
     <section class="card">
-      <details>
+      <details id="settingsPanel">
         <summary class="summary">
           <span>朗讀設定</span>
           <span class="summaryHint">字體 / 睡眠計時 / 聲線 / 語速 / 音量 / 音高</span>
@@ -144,12 +147,23 @@
     </footer>
   </main>
 
-  <!-- 底部播放器（固定，拇指區） -->
-  <nav class="playerBar" aria-label="播放器">
-    <button id="btnPlay" class="pbtn primary">播放</button>
-    <button id="btnPause" class="pbtn" disabled>暫停</button>
-    <button id="btnResume" class="pbtn" disabled>繼續</button>
-    <button id="btnStop" class="pbtn danger" disabled>停止</button>
+  <!-- 底部固定欄：四個大按鈕（雙保險之二） -->
+  <nav class="bottomBar" aria-label="底部操作">
+    <button id="bbLibrary" class="bbBtn">
+      <span class="bbIcon">📚</span><span class="bbText">書庫</span>
+    </button>
+
+    <button id="bbMain" class="bbBtn primary">
+      <span class="bbIcon">▶︎</span><span class="bbText">播放</span>
+    </button>
+
+    <button id="bbStop" class="bbBtn danger" disabled>
+      <span class="bbIcon">■</span><span class="bbText">停止</span>
+    </button>
+
+    <button id="bbSettings" class="bbBtn">
+      <span class="bbIcon">⚙️</span><span class="bbText">設定</span>
+    </button>
   </nav>
 
   <!-- 書庫 Bottom Sheet -->
@@ -177,7 +191,7 @@
   <!-- Toast -->
   <div id="toast" class="toast hidden" aria-live="polite"></div>
 
-  <!-- 系統層面：自動帶 v=BUILD_ID；解除舊 SW/清 Cache；再載入 app.js（帶版本） -->
+  <!-- 系統層面：自動帶 v=BUILD_ID；解除舊 SW/清 Cache；再載入 app.js -->
   <script>
     (async () => {
       const BUILD_ID = window.BUILD_ID || "dev";
