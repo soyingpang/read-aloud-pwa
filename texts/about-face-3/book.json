@@ -17,6 +17,16 @@
     { "id": "ch-13", "order": 13, "title": "Chapter 13", "file": "texts/about-face-3/chapters/ch-13.txt" },
     { "id": "ch-14", "order": 14, "title": "Chapter 14", "file": "texts/about-face-3/chapters/ch-14.txt" },
     { "id": "ch-15", "order": 15, "title": "Chapter 15", "file": "texts/about-face-3/chapters/ch-15.txt" },
-    { "id": "ch-16", "order": 16, "title": "Chapter 16", "file": "texts/about-face-3/chapters/ch-16.txt" }
+    { "id": "ch-16", "order": 16, "title": "Chapter 16", "file": "texts/about-face-3/chapters/ch-16.txt" },
+    { "id": "ch-17", "order": 17, "title": "Chapter 17", "file": "texts/about-face-3/chapters/ch-17.txt" },
+    { "id": "ch-18", "order": 18, "title": "Chapter 18", "file": "texts/about-face-3/chapters/ch-18.txt" },
+    { "id": "ch-19", "order": 19, "title": "Chapter 19", "file": "texts/about-face-3/chapters/ch-19.txt" },
+    { "id": "ch-20", "order": 20, "title": "Chapter 20", "file": "texts/about-face-3/chapters/ch-20.txt" },
+    { "id": "ch-21", "order": 21, "title": "Chapter 21", "file": "texts/about-face-3/chapters/ch-21.txt" },
+    { "id": "ch-22", "order": 22, "title": "Chapter 22", "file": "texts/about-face-3/chapters/ch-22.txt" },
+    { "id": "ch-23", "order": 23, "title": "Chapter 23", "file": "texts/about-face-3/chapters/ch-23.txt" },
+    { "id": "ch-24", "order": 24, "title": "Chapter 24", "file": "texts/about-face-3/chapters/ch-24.txt" },
+    { "id": "ch-25", "order": 25, "title": "Chapter 25", "file": "texts/about-face-3/chapters/ch-25.txt" },
+    { "id": "ch-26", "order": 26, "title": "Chapter 26", "file": "texts/about-face-3/chapters/ch-26.txt" }
   ]
 }
