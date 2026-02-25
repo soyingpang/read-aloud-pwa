@@ -9,7 +9,7 @@
     window.BUILD_ID = "2026-02-14-1";
   </script>
 
-  <link rel="manifest" href="manifest.json" />
+  <link rel="manifest" href="manifest.json?v=2026-02-14-1" />
   <meta name="theme-color" content="#0b1220" />
 
   <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -84,7 +84,6 @@
 
           <div class="row">
             <button id="btnRestart" class="btn" type="button" disabled>從頭</button>
-            <button id="btnStop" class="btn danger" type="button" disabled>停止</button>
             <button id="btnOpenLibrary2" class="btn ghost" type="button">選書/選章</button>
           </div>
         </div>
@@ -164,6 +163,12 @@
           </select>
           <div class="help">A 較自然；B 會更「一口氣」。</div>
         </div>
+
+        <div class="field fieldFull">
+          <label class="checkLine"><input id="autoNext" type="checkbox"> 章節播畢自動播放下一章</label>
+          <div class="help">開啟後，當本章最後一段朗讀完畢，會自動載入並接續朗讀下一章。</div>
+        </div>
+
 
         <div class="field span2">
           <label for="voice">聲線</label>
