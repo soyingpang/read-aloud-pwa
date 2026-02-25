@@ -72,53 +72,46 @@
       </div>
     </aside>
 
-    <main class="main v2" role="main">
-      <section class="player" aria-label="播放器">
-        <header class="playerHeader">
-          <div class="bookTitle" id="heroBook">請先選擇書籍與章節</div>
-          <div class="chapterTitle" id="heroChapter">可用連結直達：?book=about-face-3&ch=ch-01&autoplay=1</div>
-          <div class="progressLine">
-            <span id="progressInfo" class="muted">0%</span>
-            <span class="dot">·</span>
-            <span id="progress" class="muted">0 / 0</span>
-            <span class="dot">·</span>
-            <span id="where" class="muted">—</span>
-            <span id="sleepPill" class="pill hidden">⏲ --:--</span>
-          </div>
-        </header>
-
-        <div class="focusText" aria-label="目前段落">
-          <div class="para prev" id="prevParagraph" aria-hidden="true"></div>
-          <div class="para current" id="currentParagraph">準備播放…</div>
-          <div class="para next" id="nextParagraph" aria-hidden="true"></div>
+    <main class="main" role="main">
+      <section class="card hero" aria-label="播放器">
+        <div class="heroTop">
+          <div class="heroTitle" id="heroBook">請先選擇書籍與章節</div>
+          <div class="heroSub" id="heroChapter">可用連結直達：?book=about-face-3&ch=ch-01&autoplay=1</div>
         </div>
 
-        <div class="playControls" aria-label="播放控制">
-          <button id="btnMain" class="btnMain" type="button">播放</button>
-          <div class="utilityBar" aria-label="輔助操作">
-            <button id="btnBack10" class="uBtn" type="button" aria-label="上一段">⏪</button>
-            <button id="btnRestart" class="uBtn" type="button" aria-label="從頭" disabled>⟲</button>
-            <button id="btnForward10" class="uBtn" type="button" aria-label="下一段">⏩</button>
-            <button id="btnSpeed" class="uBtn" type="button" aria-label="速度">1x</button>
-            <button id="btnOpenLibrary2" class="uBtn" type="button" aria-label="選書選章">章節</button>
-          </div>
-          <div class="metaRow">
-            <div class="pill" id="metrics">字數：0｜內部分段：0</div>
+        <div class="heroControls">
+          <button id="btnMain" class="btn primary big" type="button">播放</button>
+
+          <div class="row">
+            <button id="btnRestart" class="btn" type="button" disabled>從頭</button>
+            <button id="btnOpenLibrary2" class="btn ghost" type="button">選書/選章</button>
           </div>
         </div>
 
-        <details class="textPanel" id="textPanel">
-          <summary>文字內容（可貼上 / 可編輯）</summary>
-          <textarea id="text" class="textarea v2" placeholder="在此貼上文字，或從書庫載入章節…" spellcheck="false"></textarea>
-          <div class="row mt12">
-            <button id="btnPlayCursor" class="btn" type="button">從游標播放</button>
-            <button id="btnClear" class="btn ghost" type="button">清空</button>
-            <div class="spacer"></div>
-          </div>
-        </details>
+        <div class="heroMeta" aria-label="播放狀態">
+          <div class="pill" id="metrics">字數：0｜內部分段：0</div>
+          <div class="pill" id="progress">0 / 0</div>
+          <div class="pill hidden" id="sleepPill">⏲ --:--</div>
+        </div>
       </section>
 
-      <footer class="footer v2">
+      <section class="card" aria-label="文字內容">
+        <div class="cardTitleRow">
+          <div class="cardTitle">文字內容</div>
+          <div class="cardHint">載入章節後可直接播放，也可自行貼上文字</div>
+        </div>
+
+        <textarea id="text" class="textarea" placeholder="在此貼上文字，或從書庫載入章節…" spellcheck="false"></textarea>
+
+        <div class="row mt12">
+          <button id="btnPlayCursor" class="btn" type="button">從游標播放</button>
+          <button id="btnClear" class="btn ghost" type="button">清空</button>
+          <div class="spacer"></div>
+          <span id="where" class="muted">—</span>
+        </div>
+      </section>
+
+      <footer class="footer">
         使用瀏覽器內建朗讀（Speech Synthesis）。手機通常需要點一下才可開始播放。
       </footer>
     </main>

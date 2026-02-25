@@ -7,9 +7,6 @@ const bust = (path) => {
   return u.toString();
 };
 
-
-// PWA Service Worker（離線快取）
-// 注意：必須在 HTTPS / localhost 才能運作；GitHub Pages 可用。
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
     navigator.serviceWorker
@@ -23,7 +20,6 @@ const LS = {
   font: "reader:font",
   last: "reader:lastProgress",
   tts: "reader:ttsSettings",
-  focus: "reader:focusMode",
 };
 
 const els = {
@@ -55,14 +51,6 @@ const els = {
   btnPlayCursor: $("btnPlayCursor"),
   btnClear: $("btnClear"),
   where: $("where"),
-
-    prevParagraph: $("prevParagraph"),
-  currentParagraph: $("currentParagraph"),
-  nextParagraph: $("nextParagraph"),
-  progressInfo: $("progressInfo"),
-  btnBack10: $("btnBack10"),
-  btnForward10: $("btnForward10"),
-  btnSpeed: $("btnSpeed"),
 
   overlay: $("overlay"),
 
@@ -97,8 +85,6 @@ let currentIndex = 0;
 let isPlaying = false;
 let isPaused = false;
 let utter = null;
-let speakLock = false;
-
 
 let paneView = "books";
 let searchQuery = "";
@@ -108,54 +94,6 @@ let sleepTick = null;
 
 let wakeLock = null;
 let wasPlayingBeforeHidden = false;
-
-// Media Session（鎖屏/通知列控制）
-// 注意：各瀏覽器對 TTS 背景播放限制不同，但至少可提供一致的播放控制入口。
-let mediaSessionReady = false;
-
-function setupMediaSession() {
-  if (mediaSessionReady) return;
-  if (!("mediaSession" in navigator)) return;
-  mediaSessionReady = true;
-
-  const safe = (fn) => {
-    try { fn(); } catch {}
-  };
-
-  // 播放/暫停
-  safe(() => navigator.mediaSession.setActionHandler("play", () => togglePlay()));
-  safe(() => navigator.mediaSession.setActionHandler("pause", () => togglePlay(true)));
-  safe(() => navigator.mediaSession.setActionHandler("stop", () => stop(true)));
-
-  // 上一段/下一段（對應鎖屏的上一首/下一首）
-  safe(() => navigator.mediaSession.setActionHandler("previoustrack", () => jumpSegment(-1)));
-  safe(() => navigator.mediaSession.setActionHandler("nexttrack", () => jumpSegment(1)));
-
-  // 退/快（對應 10 秒）
-  safe(() => navigator.mediaSession.setActionHandler("seekbackward", (d) => jumpSegment(-1)));
-  safe(() => navigator.mediaSession.setActionHandler("seekforward", (d) => jumpSegment(1)));
-}
-
-function updateMediaSessionMeta() {
-  if (!("mediaSession" in navigator)) return;
-
-  const title = (currentChapter?.title || currentChapter?.name || "").trim();
-  const album = (currentBookMeta?.title || currentBookMeta?.name || "").trim();
-
-  try {
-    navigator.mediaSession.metadata = new MediaMetadata({
-      title: title || "朗讀中",
-      album: album || "有聲閱讀",
-      artist: "",
-    });
-  } catch {}
-
-  try {
-    navigator.mediaSession.playbackState =
-      isPlaying && !isPaused ? "playing" : "paused";
-  } catch {}
-}
-
 
 function toast(msg) {
   if (!els.toast) return;
@@ -236,17 +174,6 @@ function applyFont(value) {
   localStorage.setItem(LS.font, f);
 }
 
-function applyFocusMode(on) {
-  document.body.classList.toggle("focus", !!on);
-  try { localStorage.setItem(LS.focus, on ? "1" : "0"); } catch {}
-}
-
-function getFocusMode() {
-  try { return localStorage.getItem(LS.focus) === "1"; } catch { return false; }
-}
-
-
-
 function sanitizeForSpeech(input, mode = "A") {
   const t = String(input || "");
   if (mode === "B") {
@@ -287,7 +214,6 @@ function ensureDefaultTTSSettings() {
     localStorage.setItem(LS.tts, JSON.stringify({ punctMode: "A", autoNext: false }));
   } catch {}
 }
-
 
 function getAutoNextChapter() {
   if (els.autoNext) return !!els.autoNext.checked;
@@ -448,38 +374,10 @@ function updateStatusUI() {
 
   els.btnRestart.disabled = !currentChapter || !segs.length;
 
-  // V2：更新主畫面段落顯示（前一段／當前段／下一段）
-  if (els.currentParagraph) {
-    if (!segs.length) {
-      if (els.prevParagraph) els.prevParagraph.textContent = "";
-      els.currentParagraph.textContent = "準備播放…";
-      if (els.nextParagraph) els.nextParagraph.textContent = "";
-    } else {
-      const i = Math.max(0, Math.min(currentIndex, segs.length - 1));
-      const prev = segs[i - 1]?.text || "";
-      const curr = segs[i]?.text || "";
-      const next = segs[i + 1]?.text || "";
-      if (els.prevParagraph) els.prevParagraph.textContent = prev;
-      els.currentParagraph.textContent = curr || "—";
-      if (els.nextParagraph) els.nextParagraph.textContent = next;
-    }
-  }
-
-  // V2：進度百分比（以段落數計）
-  if (els.progressInfo) {
-    const denom = Math.max(1, segs.length || 1);
-    const num = Math.min(currentIndex + (isPlaying ? 1 : 0), segs.length || 0);
-    const pct = Math.round((num / denom) * 100);
-    els.progressInfo.textContent = `${pct}%`;
-  }
-
-
   if (!segs.length) els.btnMain.textContent = "播放";
   else if (!isPlaying && !isPaused) els.btnMain.textContent = currentIndex > 0 && currentIndex < segs.length ? "續播" : "播放";
   else if (isPlaying && !isPaused) els.btnMain.textContent = "暫停";
   else if (isPlaying && isPaused) els.btnMain.textContent = "繼續";
-
-  updateMediaSessionMeta();
 }
 
 function resetSegmentsToText() {
@@ -594,12 +492,6 @@ function speakFrom(index) {
     toast("此瀏覽器不支援朗讀，建議用 Chrome/Edge。");
     return;
   }
-
-// 防止快速連點造成重入/狀態錯亂
-if (speakLock) return;
-speakLock = true;
-setTimeout(() => (speakLock = false), 250);
-
   if (!segs.length) resetSegmentsToText();
   if (!segs.length) {
     toast("沒有可朗讀內容");
@@ -612,9 +504,6 @@ setTimeout(() => (speakLock = false), 250);
   isPlaying = true;
   isPaused = false;
   updateStatusUI();
-
-  setupMediaSession();
-  updateMediaSessionMeta();
 
   const mode = getPunctMode();
 
@@ -629,7 +518,6 @@ setTimeout(() => (speakLock = false), 250);
       releaseWakeLock();
       updateStatusUI();
 
-      // 章節播畢：可選擇自動接續下一章
       if (getAutoNextChapter()) {
         openNextChapterAndAutoplay().then((ok) => {
           if (!ok) {
@@ -661,20 +549,7 @@ setTimeout(() => (speakLock = false), 250);
       run();
     };
 
-    utter.onerror = (e) => {
-      if (!isPlaying) return;
-
-      // 某些情況（例如切到背景/語音被系統中斷）會回報 canceled/interrupted。
-      // 這裡先嘗試重播一次，避免直接跳段造成「聽起來漏掉」。
-      const err = (e && (e.error || e.name)) ? String(e.error || e.name) : "";
-      if ((err.includes("canceled") || err.includes("interrupted")) && !document.hidden) {
-        utter = null;
-        setTimeout(() => {
-          if (isPlaying && !isPaused) run();
-        }, 200);
-        return;
-      }
-
+    utter.onerror = () => {
       currentIndex += 1;
       run();
     };
@@ -707,13 +582,10 @@ function resume() {
 }
 
 function stop(showMsg = true) {
-  // IMPORTANT: Some browsers may synchronously fire `onend` during `cancel()`.
-  // If `isPlaying` is still true at that moment, the onend handler can advance
-  // to the next segment and keep reading. So we flip flags FIRST, then cancel.
+
   isPlaying = false;
   isPaused = false;
 
-  // Detach handlers to avoid re-entrancy.
   try {
     if (utter) {
       utter.onend = null;
@@ -776,53 +648,6 @@ function onMainPressed() {
   if (isPlaying && isPaused) {
     resume();
     return;
-  }
-}
-
-
-function togglePlay(forcePause = false) {
-  if (forcePause) {
-    if (isPlaying && !isPaused) pause();
-    return;
-  }
-  if (!segs.length) resetSegmentsToText();
-  if (!segs.length) {
-    toast("請先載入章節或貼上文字");
-    return;
-  }
-  if (!isPlaying && !isPaused) {
-    const start = currentIndex >= segs.length ? 0 : currentIndex;
-    speakFrom(start);
-    return;
-  }
-  if (isPlaying && !isPaused) {
-    pause();
-    return;
-  }
-  if (isPlaying && isPaused) {
-    resume();
-    return;
-  }
-}
-
-function jumpSegment(delta) {
-  if (!segs.length) resetSegmentsToText();
-  if (!segs.length) return;
-
-  const target = Math.max(0, Math.min(currentIndex + delta, segs.length - 1));
-  if (target === currentIndex) return;
-
-  currentIndex = target;
-  saveProgress();
-  updateStatusUI();
-
-  // 播放中：直接從新位置接續
-  if (isPlaying && !isPaused) {
-    try { window.speechSynthesis.cancel(); } catch {}
-    // 使用同一套流程（含 Wake Lock / Media Session）
-    speakFrom(currentIndex);
-  } else {
-    toast(delta > 0 ? "已跳到下一段" : "已跳到上一段");
   }
 }
 
@@ -986,85 +811,62 @@ async function openChapter(ch, { autoplay, startIndex, restored }) {
     url.searchParams.set("ch", ch.id);
     if (autoplay) url.searchParams.set("autoplay", "1");
     else url.searchParams.delete("autoplay");
-    history.replaceState({}, "",
-async function openNextChapterOnly() {
-  try {
-    if (!currentBookData?.chapters || !currentChapter?.id) return false;
-    const chapters = currentBookData.chapters;
-    const idx = chapters.findIndex((c) => c.id === currentChapter.id);
-    if (idx < 0) return false;
-    const next = chapters[idx + 1];
-    if (!next) return false;
-    await openChapter(next, { autoplay: false, startIndex: 0, restored: false });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-async function openPrevChapterOnly() {
-  try {
-    if (!currentBookData?.chapters || !currentChapter?.id) return false;
-    const chapters = currentBookData.chapters;
-    const idx = chapters.findIndex((c) => c.id === currentChapter.id);
-    if (idx < 0) return false;
-    const prev = chapters[idx - 1];
-    if (!prev) return false;
-    await openChapter(prev, { autoplay: false, startIndex: 0, restored: false });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-async function openPrevChapterAndAutoplay() {
-  try {
-    if (!currentBookData?.chapters || !currentChapter?.id) return false;
-    const chapters = currentBookData.chapters;
-    const idx = chapters.findIndex((c) => c.id === currentChapter.id);
-    if (idx < 0) return false;
-    const prev = chapters[idx - 1];
-    if (!prev) return false;
-
-    await openChapter(prev, { autoplay: false, startIndex: 0, restored: false });
-    speakFrom(0);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
- url);
+    history.replaceState({}, "", url);
   }
 
   if (restored) toast("已恢復上次進度（可按續播）");
 
   if (autoplay) {
-    toast("已載入文字：請點一下畫面開始朗讀");
     const once = () => speakFrom(0);
     window.addEventListener("pointerdown", once, { once: true });
     window.addEventListener("touchstart", once, { once: true, passive: true });
   }
-
-async function openNextChapterAndAutoplay() {
-  try {
-    if (!currentBookData?.chapters || !currentChapter?.id) return false;
-    const chapters = currentBookData.chapters;
-    const idx = chapters.findIndex((c) => c.id === currentChapter.id);
-    if (idx < 0) return false;
-    const next = chapters[idx + 1];
-    if (!next) return false;
-
-    await openChapter(next, { autoplay: false, startIndex: 0, restored: false });
-    // 章節切換後直接接續朗讀（不再要求手動點擊）
-    speakFrom(0);
-    return true;
-  } catch (e) {
-    console.warn("自動下一章失敗：", e);
-    return false;
-  }
 }
 
+async function openNextChapterOnly() {
+  if (!currentBookData?.chapters || !currentChapter?.id) return false;
+  const chapters = currentBookData.chapters;
+  const idx = chapters.findIndex((c) => c.id === currentChapter.id);
+  if (idx < 0) return false;
+  const next = chapters[idx + 1];
+  if (!next) return false;
+  await openChapter(next, { autoplay: false, startIndex: 0, restored: false });
+  return true;
+}
+
+async function openPrevChapterOnly() {
+  if (!currentBookData?.chapters || !currentChapter?.id) return false;
+  const chapters = currentBookData.chapters;
+  const idx = chapters.findIndex((c) => c.id === currentChapter.id);
+  if (idx < 0) return false;
+  const prev = chapters[idx - 1];
+  if (!prev) return false;
+  await openChapter(prev, { autoplay: false, startIndex: 0, restored: false });
+  return true;
+}
+
+async function openNextChapterAndAutoplay() {
+  if (!currentBookData?.chapters || !currentChapter?.id) return false;
+  const chapters = currentBookData.chapters;
+  const idx = chapters.findIndex((c) => c.id === currentChapter.id);
+  if (idx < 0) return false;
+  const next = chapters[idx + 1];
+  if (!next) return false;
+  await openChapter(next, { autoplay: false, startIndex: 0, restored: false });
+  speakFrom(0);
+  return true;
+}
+
+async function openPrevChapterAndAutoplay() {
+  if (!currentBookData?.chapters || !currentChapter?.id) return false;
+  const chapters = currentBookData.chapters;
+  const idx = chapters.findIndex((c) => c.id === currentChapter.id);
+  if (idx < 0) return false;
+  const prev = chapters[idx - 1];
+  if (!prev) return false;
+  await openChapter(prev, { autoplay: false, startIndex: 0, restored: false });
+  speakFrom(0);
+  return true;
 }
 
 async function copyShareFor(bookId, chId) {
@@ -1215,7 +1017,6 @@ function bind() {
 
   els.rate.addEventListener("input", () => {
     els.rateVal.textContent = Number(els.rate.value).toFixed(1);
-    if (els.btnSpeed) els.btnSpeed.textContent = Number(els.rate.value).toFixed(1) + "x";
     saveTTSSettings();
   });
   els.vol.addEventListener("input", () => {
@@ -1235,48 +1036,6 @@ function bind() {
 
   els.btnMain.addEventListener("click", onMainPressed);
   els.btnRestart.addEventListener("click", restartFromHead);
-
-  if (els.btnBack10) els.btnBack10.addEventListener("click", () => {
-    if (!segs.length) resetSegmentsToText();
-    if (!segs.length) return;
-    const nextIndex = Math.max(0, currentIndex - 1);
-    const shouldAuto = isPlaying && !isPaused;
-    currentIndex = nextIndex;
-    saveProgress();
-    updateStatusUI();
-    if (shouldAuto) speakFrom(currentIndex);
-  });
-
-  if (els.btnForward10) els.btnForward10.addEventListener("click", () => {
-    if (!segs.length) resetSegmentsToText();
-    if (!segs.length) return;
-    const nextIndex = Math.min(segs.length - 1, currentIndex + 1);
-    const shouldAuto = isPlaying && !isPaused;
-    currentIndex = nextIndex;
-    saveProgress();
-    updateStatusUI();
-    if (shouldAuto) speakFrom(currentIndex);
-  });
-
-  if (els.btnSpeed) {
-    const cycle = [1.0, 1.2, 1.5];
-    const syncLabel = () => {
-      const r = Number(els.rate?.value || 1);
-      els.btnSpeed.textContent = (Math.round(r * 10) / 10) + "x";
-    };
-    syncLabel();
-    els.btnSpeed.addEventListener("click", () => {
-      const cur = Number(els.rate?.value || 1);
-      const idx = cycle.findIndex((v) => Math.abs(v - cur) < 0.01);
-      const next = cycle[(idx + 1 + cycle.length) % cycle.length];
-      if (els.rate) els.rate.value = String(next);
-      if (els.rateVal) els.rateVal.textContent = String(next);
-      saveTTSSettings();
-      syncLabel();
-      // 若正在播放，立刻以新速度接續（從當前段重新開始）
-      if (isPlaying && !isPaused) speakFrom(currentIndex);
-    });
-  }
 
   els.btnPlayCursor.addEventListener("click", playFromCursor);
   els.btnClear.addEventListener("click", () => {
@@ -1329,7 +1088,6 @@ function bind() {
 
 async function init() {
   bind();
-  setupMediaSession();
 
   applyTheme(localStorage.getItem(LS.theme) || "dark");
   applyFont(localStorage.getItem(LS.font) || "m");
