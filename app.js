@@ -7,6 +7,17 @@ const bust = (path) => {
   return u.toString();
 };
 
+
+// PWA Service Worker（離線快取）
+// 注意：必須在 HTTPS / localhost 才能運作；GitHub Pages 可用。
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker
+      .register(bust("service-worker.js"))
+      .catch((err) => console.warn("Service Worker 註冊失敗：", err));
+  });
+}
+
 const LS = {
   theme: "reader:theme",
   font: "reader:font",
