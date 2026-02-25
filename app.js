@@ -109,6 +109,54 @@ let sleepTick = null;
 let wakeLock = null;
 let wasPlayingBeforeHidden = false;
 
+// Media Session（鎖屏/通知列控制）
+// 注意：各瀏覽器對 TTS 背景播放限制不同，但至少可提供一致的播放控制入口。
+let mediaSessionReady = false;
+
+function setupMediaSession() {
+  if (mediaSessionReady) return;
+  if (!("mediaSession" in navigator)) return;
+  mediaSessionReady = true;
+
+  const safe = (fn) => {
+    try { fn(); } catch {}
+  };
+
+  // 播放/暫停
+  safe(() => navigator.mediaSession.setActionHandler("play", () => togglePlay()));
+  safe(() => navigator.mediaSession.setActionHandler("pause", () => togglePlay(true)));
+  safe(() => navigator.mediaSession.setActionHandler("stop", () => stop(true)));
+
+  // 上一段/下一段（對應鎖屏的上一首/下一首）
+  safe(() => navigator.mediaSession.setActionHandler("previoustrack", () => jumpSegment(-1)));
+  safe(() => navigator.mediaSession.setActionHandler("nexttrack", () => jumpSegment(1)));
+
+  // 退/快（對應 10 秒）
+  safe(() => navigator.mediaSession.setActionHandler("seekbackward", (d) => jumpSegment(-1)));
+  safe(() => navigator.mediaSession.setActionHandler("seekforward", (d) => jumpSegment(1)));
+}
+
+function updateMediaSessionMeta() {
+  if (!("mediaSession" in navigator)) return;
+
+  const title = (currentChapter?.title || currentChapter?.name || "").trim();
+  const album = (currentBookMeta?.title || currentBookMeta?.name || "").trim();
+
+  try {
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: title || "朗讀中",
+      album: album || "有聲閱讀",
+      artist: "",
+    });
+  } catch {}
+
+  try {
+    navigator.mediaSession.playbackState =
+      isPlaying && !isPaused ? "playing" : "paused";
+  } catch {}
+}
+
+
 function toast(msg) {
   if (!els.toast) return;
   els.toast.textContent = msg;
@@ -430,6 +478,8 @@ function updateStatusUI() {
   else if (!isPlaying && !isPaused) els.btnMain.textContent = currentIndex > 0 && currentIndex < segs.length ? "續播" : "播放";
   else if (isPlaying && !isPaused) els.btnMain.textContent = "暫停";
   else if (isPlaying && isPaused) els.btnMain.textContent = "繼續";
+
+  updateMediaSessionMeta();
 }
 
 function resetSegmentsToText() {
@@ -563,6 +613,9 @@ setTimeout(() => (speakLock = false), 250);
   isPaused = false;
   updateStatusUI();
 
+  setupMediaSession();
+  updateMediaSessionMeta();
+
   const mode = getPunctMode();
 
   requestWakeLock().then((ok) => {
@@ -608,7 +661,20 @@ setTimeout(() => (speakLock = false), 250);
       run();
     };
 
-    utter.onerror = () => {
+    utter.onerror = (e) => {
+      if (!isPlaying) return;
+
+      // 某些情況（例如切到背景/語音被系統中斷）會回報 canceled/interrupted。
+      // 這裡先嘗試重播一次，避免直接跳段造成「聽起來漏掉」。
+      const err = (e && (e.error || e.name)) ? String(e.error || e.name) : "";
+      if ((err.includes("canceled") || err.includes("interrupted")) && !document.hidden) {
+        utter = null;
+        setTimeout(() => {
+          if (isPlaying && !isPaused) run();
+        }, 200);
+        return;
+      }
+
       currentIndex += 1;
       run();
     };
@@ -710,6 +776,53 @@ function onMainPressed() {
   if (isPlaying && isPaused) {
     resume();
     return;
+  }
+}
+
+
+function togglePlay(forcePause = false) {
+  if (forcePause) {
+    if (isPlaying && !isPaused) pause();
+    return;
+  }
+  if (!segs.length) resetSegmentsToText();
+  if (!segs.length) {
+    toast("請先載入章節或貼上文字");
+    return;
+  }
+  if (!isPlaying && !isPaused) {
+    const start = currentIndex >= segs.length ? 0 : currentIndex;
+    speakFrom(start);
+    return;
+  }
+  if (isPlaying && !isPaused) {
+    pause();
+    return;
+  }
+  if (isPlaying && isPaused) {
+    resume();
+    return;
+  }
+}
+
+function jumpSegment(delta) {
+  if (!segs.length) resetSegmentsToText();
+  if (!segs.length) return;
+
+  const target = Math.max(0, Math.min(currentIndex + delta, segs.length - 1));
+  if (target === currentIndex) return;
+
+  currentIndex = target;
+  saveProgress();
+  updateStatusUI();
+
+  // 播放中：直接從新位置接續
+  if (isPlaying && !isPaused) {
+    try { window.speechSynthesis.cancel(); } catch {}
+    // 使用同一套流程（含 Wake Lock / Media Session）
+    speakFrom(currentIndex);
+  } else {
+    toast(delta > 0 ? "已跳到下一段" : "已跳到上一段");
   }
 }
 
@@ -1216,6 +1329,7 @@ function bind() {
 
 async function init() {
   bind();
+  setupMediaSession();
 
   applyTheme(localStorage.getItem(LS.theme) || "dark");
   applyFont(localStorage.getItem(LS.font) || "m");
