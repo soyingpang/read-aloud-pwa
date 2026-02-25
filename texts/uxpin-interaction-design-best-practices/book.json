@@ -5,8 +5,44 @@
     {
       "id": "ch-01",
       "order": 1,
-      "title": "Introduction",
+      "title": "Chapter 1",
       "file": "texts/uxpin-interaction-design-best-practices/chapters/ch-01.txt"
+    },
+    {
+      "id": "ch-02",
+      "order": 2,
+      "title": "Chapter 2",
+      "file": "texts/uxpin-interaction-design-best-practices/chapters/ch-02.txt"
+    },
+    {
+      "id": "ch-03",
+      "order": 3,
+      "title": "Chapter 3",
+      "file": "texts/uxpin-interaction-design-best-practices/chapters/ch-03.txt"
+    },
+    {
+      "id": "ch-04",
+      "order": 4,
+      "title": "Chapter 4",
+      "file": "texts/uxpin-interaction-design-best-practices/chapters/ch-04.txt"
+    },
+    {
+      "id": "ch-05",
+      "order": 5,
+      "title": "Chapter 5",
+      "file": "texts/uxpin-interaction-design-best-practices/chapters/ch-05.txt"
+    },
+    {
+      "id": "ch-06",
+      "order": 6,
+      "title": "Chapter 6",
+      "file": "texts/uxpin-interaction-design-best-practices/chapters/ch-06.txt"
+    },
+    {
+      "id": "ch-07",
+      "order": 7,
+      "title": "Chapter 7",
+      "file": "texts/uxpin-interaction-design-best-practices/chapters/ch-07.txt"
     }
   ]
 }
