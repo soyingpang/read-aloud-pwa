@@ -55,6 +55,14 @@ const els = {
   btnClear: $("btnClear"),
   where: $("where"),
 
+    prevParagraph: $("prevParagraph"),
+  currentParagraph: $("currentParagraph"),
+  nextParagraph: $("nextParagraph"),
+  progressInfo: $("progressInfo"),
+  btnBack10: $("btnBack10"),
+  btnForward10: $("btnForward10"),
+  btnSpeed: $("btnSpeed"),
+
   overlay: $("overlay"),
 
   settingsModal: $("settingsModal"),
@@ -377,6 +385,32 @@ function updateStatusUI() {
   }
 
   els.btnRestart.disabled = !currentChapter || !segs.length;
+
+  // V2：更新主畫面段落顯示（前一段／當前段／下一段）
+  if (els.currentParagraph) {
+    if (!segs.length) {
+      if (els.prevParagraph) els.prevParagraph.textContent = "";
+      els.currentParagraph.textContent = "準備播放…";
+      if (els.nextParagraph) els.nextParagraph.textContent = "";
+    } else {
+      const i = Math.max(0, Math.min(currentIndex, segs.length - 1));
+      const prev = segs[i - 1]?.text || "";
+      const curr = segs[i]?.text || "";
+      const next = segs[i + 1]?.text || "";
+      if (els.prevParagraph) els.prevParagraph.textContent = prev;
+      els.currentParagraph.textContent = curr || "—";
+      if (els.nextParagraph) els.nextParagraph.textContent = next;
+    }
+  }
+
+  // V2：進度百分比（以段落數計）
+  if (els.progressInfo) {
+    const denom = Math.max(1, segs.length || 1);
+    const num = Math.min(currentIndex + (isPlaying ? 1 : 0), segs.length || 0);
+    const pct = Math.round((num / denom) * 100);
+    els.progressInfo.textContent = `${pct}%`;
+  }
+
 
   if (!segs.length) els.btnMain.textContent = "播放";
   else if (!isPlaying && !isPaused) els.btnMain.textContent = currentIndex > 0 && currentIndex < segs.length ? "續播" : "播放";
@@ -1000,6 +1034,7 @@ function bind() {
 
   els.rate.addEventListener("input", () => {
     els.rateVal.textContent = Number(els.rate.value).toFixed(1);
+    if (els.btnSpeed) els.btnSpeed.textContent = Number(els.rate.value).toFixed(1) + "x";
     saveTTSSettings();
   });
   els.vol.addEventListener("input", () => {
@@ -1019,6 +1054,48 @@ function bind() {
 
   els.btnMain.addEventListener("click", onMainPressed);
   els.btnRestart.addEventListener("click", restartFromHead);
+
+  if (els.btnBack10) els.btnBack10.addEventListener("click", () => {
+    if (!segs.length) resetSegmentsToText();
+    if (!segs.length) return;
+    const nextIndex = Math.max(0, currentIndex - 1);
+    const shouldAuto = isPlaying && !isPaused;
+    currentIndex = nextIndex;
+    saveProgress();
+    updateStatusUI();
+    if (shouldAuto) speakFrom(currentIndex);
+  });
+
+  if (els.btnForward10) els.btnForward10.addEventListener("click", () => {
+    if (!segs.length) resetSegmentsToText();
+    if (!segs.length) return;
+    const nextIndex = Math.min(segs.length - 1, currentIndex + 1);
+    const shouldAuto = isPlaying && !isPaused;
+    currentIndex = nextIndex;
+    saveProgress();
+    updateStatusUI();
+    if (shouldAuto) speakFrom(currentIndex);
+  });
+
+  if (els.btnSpeed) {
+    const cycle = [1.0, 1.2, 1.5];
+    const syncLabel = () => {
+      const r = Number(els.rate?.value || 1);
+      els.btnSpeed.textContent = (Math.round(r * 10) / 10) + "x";
+    };
+    syncLabel();
+    els.btnSpeed.addEventListener("click", () => {
+      const cur = Number(els.rate?.value || 1);
+      const idx = cycle.findIndex((v) => Math.abs(v - cur) < 0.01);
+      const next = cycle[(idx + 1 + cycle.length) % cycle.length];
+      if (els.rate) els.rate.value = String(next);
+      if (els.rateVal) els.rateVal.textContent = String(next);
+      saveTTSSettings();
+      syncLabel();
+      // 若正在播放，立刻以新速度接續（從當前段重新開始）
+      if (isPlaying && !isPaused) speakFrom(currentIndex);
+    });
+  }
 
   els.btnPlayCursor.addEventListener("click", playFromCursor);
   els.btnClear.addEventListener("click", () => {

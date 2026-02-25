@@ -514,3 +514,161 @@ button{ -webkit-tap-highlight-color: transparent; }
 .fieldFull{grid-column:1 / -1;}
 .checkLine{display:flex;align-items:center;gap:10px;user-select:none;}
 .checkLine input{transform:scale(1.05);}
+
+
+/* ===== V2 極簡播放器主畫面 ===== */
+.main.v2{
+  padding: 18px 18px calc(18px + var(--safeB));
+}
+
+.player{
+  max-width: 920px;
+  margin: 0 auto;
+  background: linear-gradient(180deg, rgba(59,130,246,.10), rgba(255,255,255,0));
+  border: 1px solid var(--line);
+  border-radius: var(--radius2);
+  padding: 18px;
+}
+
+.playerHeader{
+  text-align: center;
+  padding-top: 6px;
+  padding-bottom: 10px;
+}
+
+.playerHeader .bookTitle{
+  font-size: 12px;
+  color: var(--muted);
+  letter-spacing: .3px;
+}
+
+.playerHeader .chapterTitle{
+  margin-top: 6px;
+  font-size: 20px;
+  font-weight: 650;
+  line-height: 1.25;
+}
+
+.progressLine{
+  margin-top: 10px;
+  display: inline-flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+}
+
+.progressLine .dot{
+  color: rgba(148,163,184,.55);
+}
+
+.focusText{
+  margin-top: 10px;
+  padding: 18px 12px;
+  text-align: center;
+}
+
+.para{
+  max-width: 860px;
+  margin: 0 auto;
+  line-height: 1.85;
+  font-size: clamp(18px, 2.1vw, 24px);
+  word-break: break-word;
+}
+
+.para.prev, .para.next{
+  opacity: .35;
+  font-size: clamp(16px, 1.6vw, 20px);
+}
+
+.para.current{
+  opacity: 1;
+  font-weight: 520;
+}
+
+.playControls{
+  margin-top: 6px;
+  text-align: center;
+}
+
+.btnMain{
+  width: 100%;
+  max-width: 860px;
+  margin: 0 auto;
+  border: none;
+  border-radius: 18px;
+  padding: 16px 18px;
+  font-size: 20px;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(135deg, var(--pri), var(--pri2));
+  box-shadow: 0 14px 40px rgba(37,99,235,.28);
+  cursor: pointer;
+}
+
+.btnMain:disabled{
+  opacity: .6;
+  cursor: not-allowed;
+}
+
+.utilityBar{
+  max-width: 860px;
+  margin: 14px auto 0;
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.uBtn{
+  flex: 1;
+  border: 1px solid var(--line);
+  background: rgba(2,6,23,.18);
+  color: var(--text);
+  border-radius: 14px;
+  padding: 12px 10px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.uBtn:disabled{
+  opacity: .5;
+  cursor: not-allowed;
+}
+
+.metaRow{
+  margin-top: 12px;
+  display: flex;
+  justify-content: center;
+}
+
+.textPanel{
+  margin-top: 16px;
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+
+.textPanel summary{
+  cursor: pointer;
+  color: var(--muted);
+  user-select: none;
+  list-style: none;
+}
+
+.textPanel summary::-webkit-details-marker{ display:none; }
+
+.textarea.v2{
+  margin-top: 12px;
+  min-height: 220px;
+}
+
+.footer.v2{
+  max-width: 920px;
+  margin: 12px auto 0;
+}
+
+/* 窄螢幕：讓按鈕更好按 */
+@media (max-width: 520px){
+  .utilityBar{ gap: 8px; }
+  .uBtn{ padding: 12px 8px; }
+}
+
