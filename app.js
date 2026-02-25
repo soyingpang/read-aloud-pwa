@@ -23,6 +23,7 @@ const LS = {
   font: "reader:font",
   last: "reader:lastProgress",
   tts: "reader:ttsSettings",
+  focus: "reader:focusMode",
 };
 
 const els = {
@@ -96,6 +97,8 @@ let currentIndex = 0;
 let isPlaying = false;
 let isPaused = false;
 let utter = null;
+let speakLock = false;
+
 
 let paneView = "books";
 let searchQuery = "";
@@ -184,6 +187,17 @@ function applyFont(value) {
   els.fontSize.value = f;
   localStorage.setItem(LS.font, f);
 }
+
+function applyFocusMode(on) {
+  document.body.classList.toggle("focus", !!on);
+  try { localStorage.setItem(LS.focus, on ? "1" : "0"); } catch {}
+}
+
+function getFocusMode() {
+  try { return localStorage.getItem(LS.focus) === "1"; } catch { return false; }
+}
+
+
 
 function sanitizeForSpeech(input, mode = "A") {
   const t = String(input || "");
@@ -530,6 +544,12 @@ function speakFrom(index) {
     toast("此瀏覽器不支援朗讀，建議用 Chrome/Edge。");
     return;
   }
+
+// 防止快速連點造成重入/狀態錯亂
+if (speakLock) return;
+speakLock = true;
+setTimeout(() => (speakLock = false), 250);
+
   if (!segs.length) resetSegmentsToText();
   if (!segs.length) {
     toast("沒有可朗讀內容");
@@ -853,7 +873,55 @@ async function openChapter(ch, { autoplay, startIndex, restored }) {
     url.searchParams.set("ch", ch.id);
     if (autoplay) url.searchParams.set("autoplay", "1");
     else url.searchParams.delete("autoplay");
-    history.replaceState({}, "", url);
+    history.replaceState({}, "",
+async function openNextChapterOnly() {
+  try {
+    if (!currentBookData?.chapters || !currentChapter?.id) return false;
+    const chapters = currentBookData.chapters;
+    const idx = chapters.findIndex((c) => c.id === currentChapter.id);
+    if (idx < 0) return false;
+    const next = chapters[idx + 1];
+    if (!next) return false;
+    await openChapter(next, { autoplay: false, startIndex: 0, restored: false });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function openPrevChapterOnly() {
+  try {
+    if (!currentBookData?.chapters || !currentChapter?.id) return false;
+    const chapters = currentBookData.chapters;
+    const idx = chapters.findIndex((c) => c.id === currentChapter.id);
+    if (idx < 0) return false;
+    const prev = chapters[idx - 1];
+    if (!prev) return false;
+    await openChapter(prev, { autoplay: false, startIndex: 0, restored: false });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function openPrevChapterAndAutoplay() {
+  try {
+    if (!currentBookData?.chapters || !currentChapter?.id) return false;
+    const chapters = currentBookData.chapters;
+    const idx = chapters.findIndex((c) => c.id === currentChapter.id);
+    if (idx < 0) return false;
+    const prev = chapters[idx - 1];
+    if (!prev) return false;
+
+    await openChapter(prev, { autoplay: false, startIndex: 0, restored: false });
+    speakFrom(0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+ url);
   }
 
   if (restored) toast("已恢復上次進度（可按續播）");
