@@ -510,12 +510,9 @@ button{ -webkit-tap-highlight-color: transparent; }
   box-shadow: var(--shadow);
 }
 
-
 .fieldFull{grid-column:1 / -1;}
 .checkLine{display:flex;align-items:center;gap:10px;user-select:none;}
 .checkLine input{transform:scale(1.05);}
-<<<<<<< HEAD
-
 
 /* ===== V2 極簡播放器主畫面 ===== */
 .main.v2{
@@ -667,11 +664,7 @@ button{ -webkit-tap-highlight-color: transparent; }
   margin: 12px auto 0;
 }
 
-/* 窄螢幕：讓按鈕更好按 */
 @media (max-width: 520px){
   .utilityBar{ gap: 8px; }
   .uBtn{ padding: 12px 8px; }
 }
-
-=======
->>>>>>> 9401ed8bf9c1e7a45b2f6421a4a3d224fecf06f4
