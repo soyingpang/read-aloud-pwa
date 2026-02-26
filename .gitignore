@@ -9,3 +9,10 @@ build/
 
 # Logs
 *.log
+
+# IDE
+.vscode/
+.idea/
+
+# npm lock (看你是否要固定依賴)
+package-lock.json

@@ -75,7 +75,7 @@ button{ -webkit-tap-highlight-color: transparent; }
   display:flex;
   align-items:center;
   gap:10px;
-  background: color-mix(in oklab, var(--bg2), transparent 22%);
+  background: rgba(11,18,32,.78);
   backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--line);
 }
@@ -103,7 +103,7 @@ button{ -webkit-tap-highlight-color: transparent; }
   min-width:64px;
   border-radius: 14px;
   border:1px solid var(--line);
-  background: color-mix(in oklab, var(--bg2), transparent 20%);
+  background: rgba(11,18,32,.80);
   color: var(--text);
   cursor: pointer;
 }
@@ -134,6 +134,7 @@ button{ -webkit-tap-highlight-color: transparent; }
   position: sticky;
   top: calc(76px + var(--safeT));
   height: calc(100dvh - (92px + var(--safeT)));
+  height: calc(100vh - (92px + var(--safeT)));
 }
 
 .paneHeader{
@@ -150,7 +151,7 @@ button{ -webkit-tap-highlight-color: transparent; }
   height: 44px;
   border-radius: 14px;
   border:1px solid var(--line);
-  background: color-mix(in oklab, var(--bg2), transparent 18%);
+  background: rgba(11,18,32,.82);
   color: var(--text);
   cursor:pointer;
   font-weight: 950;
@@ -169,7 +170,7 @@ button{ -webkit-tap-highlight-color: transparent; }
   padding: 11px 12px;
   border-radius: 14px;
   border:1px solid var(--line);
-  background: color-mix(in oklab, var(--bg2), transparent 0%);
+  background: var(--bg2);
   color: var(--text);
   outline:none;
 }
@@ -185,15 +186,15 @@ button{ -webkit-tap-highlight-color: transparent; }
   padding: 10px 10px;
   border-radius: 14px;
   border:1px solid var(--line);
-  background: color-mix(in oklab, var(--bg2), transparent 12%);
+  background: rgba(11,18,32,.78);
   color: var(--muted);
   font-weight: 900;
   cursor:pointer;
 }
 .tab.active{
   color: var(--text);
-  border-color: color-mix(in oklab, var(--pri), transparent 55%);
-  background: color-mix(in oklab, var(--pri), transparent 86%);
+  border-color: rgba(59,130,246,.45);
+  background: rgba(59,130,246,.14);
 }
 .tab:disabled{
   opacity:.55;
@@ -217,7 +218,7 @@ button{ -webkit-tap-highlight-color: transparent; }
   padding: 12px 12px;
   border-radius: 16px;
   border:1px solid var(--line);
-  background: color-mix(in oklab, var(--bg2), transparent 12%);
+  background: rgba(11,18,32,.72);
   display:flex;
   align-items:center;
   gap:10px;
@@ -247,7 +248,7 @@ button{ -webkit-tap-highlight-color: transparent; }
   padding: 10px 12px;
   border-radius: 14px;
   border:1px solid var(--line);
-  background: color-mix(in oklab, var(--bg2), transparent 18%);
+  background: rgba(11,18,32,.82);
   color: var(--text);
   font-weight: 900;
   cursor:pointer;
@@ -256,7 +257,7 @@ button{ -webkit-tap-highlight-color: transparent; }
 .paneFooter{
   padding: 12px;
   border-top: 1px solid var(--line);
-  background: color-mix(in oklab, var(--bg2), transparent 10%);
+  background: rgba(11,18,32,.78);
 }
 
 .metaLine{
@@ -271,7 +272,7 @@ button{ -webkit-tap-highlight-color: transparent; }
   padding: 4px 10px;
   border-radius: 999px;
   border:1px solid var(--line);
-  background: color-mix(in oklab, var(--bg2), transparent 10%);
+  background: rgba(11,18,32,.78);
 }
 
 .muted{ color: var(--muted); font-size:12px; }
@@ -324,7 +325,7 @@ button{ -webkit-tap-highlight-color: transparent; }
 
 .btn{
   border:1px solid var(--line);
-  background: color-mix(in oklab, var(--bg2), transparent 10%);
+  background: rgba(11,18,32,.78);
   color: var(--text);
   padding: 12px 12px;
   border-radius: 16px;
@@ -334,14 +335,14 @@ button{ -webkit-tap-highlight-color: transparent; }
 
 .btn.primary{
   background: linear-gradient(180deg, var(--pri), var(--pri2));
-  border-color: color-mix(in oklab, var(--pri), transparent 55%);
+  border-color: rgba(59,130,246,.45);
 }
 
 .btn.ghost{ background: transparent; }
 
 .btn.danger{
-  background: color-mix(in oklab, var(--danger), transparent 88%);
-  border-color: color-mix(in oklab, var(--danger), transparent 60%);
+  background: rgba(239,68,68,.16);
+  border-color: rgba(239,68,68,.35);
 }
 
 .btn.big{
@@ -379,7 +380,7 @@ button{ -webkit-tap-highlight-color: transparent; }
   padding:6px 10px;
   border:1px solid var(--line);
   border-radius: 999px;
-  background: color-mix(in oklab, var(--bg2), transparent 10%);
+  background: rgba(11,18,32,.78);
 }
 
 .cardTitleRow{
@@ -399,7 +400,7 @@ button{ -webkit-tap-highlight-color: transparent; }
   padding: 12px;
   border-radius: 18px;
   border:1px solid var(--line);
-  background: color-mix(in oklab, var(--bg2), transparent 0%);
+  background: var(--bg2);
   color: var(--text);
   outline:none;
   line-height:1.75;
@@ -480,7 +481,7 @@ button{ -webkit-tap-highlight-color: transparent; }
   padding: 10px 12px;
   border-radius: 14px;
   border:1px solid var(--line);
-  background: color-mix(in oklab, var(--bg2), transparent 0%);
+  background: var(--bg2);
   color: var(--text);
   outline:none;
 }
@@ -505,11 +506,10 @@ button{ -webkit-tap-highlight-color: transparent; }
   padding: 12px 14px;
   border-radius: 16px;
   border: 1px solid var(--line);
-  background: color-mix(in oklab, var(--bg2), transparent 10%);
+  background: rgba(11,18,32,.82);
   backdrop-filter: blur(12px);
   box-shadow: var(--shadow);
 }
-
 
 .fieldFull{grid-column:1 / -1;}
 .checkLine{display:flex;align-items:center;gap:10px;user-select:none;}
@@ -519,3 +519,25 @@ button{ -webkit-tap-highlight-color: transparent; }
 .secondaryBtn:active{transform:scale(.99)}
 
 .tag{display:inline-block;margin-left:6px;padding:2px 6px;border-radius:999px;font-size:12px;line-height:1.2;border:1px solid rgba(148,163,184,.25);opacity:.85}
+
+@supports (background: color-mix(in oklab, #000, #fff)){
+  .topbar{ background: color-mix(in oklab, var(--bg2), transparent 22%); }
+  .iconBtn{ background: color-mix(in oklab, var(--bg2), transparent 20%); }
+  .closeBtn{ background: color-mix(in oklab, var(--bg2), transparent 18%); }
+  .tab{ background: color-mix(in oklab, var(--bg2), transparent 12%); }
+  .tab.active{
+    border-color: color-mix(in oklab, var(--pri), transparent 55%);
+    background: color-mix(in oklab, var(--pri), transparent 86%);
+  }
+  .item{ background: color-mix(in oklab, var(--bg2), transparent 12%); }
+  .itemBtn{ background: color-mix(in oklab, var(--bg2), transparent 18%); }
+  .paneFooter{ background: color-mix(in oklab, var(--bg2), transparent 10%); }
+  .badge{ background: color-mix(in oklab, var(--bg2), transparent 10%); }
+  .btn{ background: color-mix(in oklab, var(--bg2), transparent 10%); }
+  .btn.danger{
+    background: color-mix(in oklab, var(--danger), transparent 88%);
+    border-color: color-mix(in oklab, var(--danger), transparent 60%);
+  }
+  .pill{ background: color-mix(in oklab, var(--bg2), transparent 10%); }
+  .toast{ background: color-mix(in oklab, var(--bg2), transparent 10%); }
+}

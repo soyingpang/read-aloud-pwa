@@ -1,18 +1,13 @@
 const BUILD_ID = window.BUILD_ID || "2026-02-27-1";
 const $ = (id) => document.getElementById(id);
-
-// --- GitHub Pages / project pages 防呆：確保路徑是資料夾結尾 ---
-// 避免 https://user.github.io/repo?x=1 造成相對路徑解析成 /texts/...（少了 /repo/）
 (() => {
   const p = location.pathname;
   const last = p.split("/").pop() || "";
-  const looksLikeFile = /\.[a-z0-9]+$/i.test(last); // e.g. index.html
+  const looksLikeFile = /\.[a-z0-9]+$/i.test(last);
   if (!looksLikeFile && !p.endsWith("/")) {
     location.replace(location.origin + p + "/" + location.search + location.hash);
   }
 })();
-
-// 一律以「目錄 base」解析相對資源，避免 query/hash 或缺尾 / 影響 new URL()
 const baseDir = (() => {
   const u = new URL(location.href);
   u.search = "";
@@ -463,6 +458,31 @@ function makeId(prefix) {
   return `${prefix}-${t}-${r}`;
 }
 
+function readTextFromFile(file) {
+  if (file && typeof file.text === "function") return file.text();
+  return new Promise((resolve, reject) => {
+    try {
+      const r = new FileReader();
+      r.onerror = () => reject(r.error || new Error("read failed"));
+      r.onload = () => resolve(String(r.result || ""));
+      r.readAsText(file);
+    } catch (e) {
+      reject(e);
+    }
+  });
+}
+
+function isTxtFile(file) {
+  if (!file) return false;
+  const n = String(file.name || "");
+  if (/\.txt$/i.test(n)) return true;
+  const t = String(file.type || "").toLowerCase();
+  if (!t) return true;
+  if (t === "text/plain") return true;
+  if (t === "application/octet-stream") return true;
+  return false;
+}
+
 function splitIntoChapters(text) {
   const raw = String(text || "").replace(/\r\n/g, "\n");
   const paras = raw.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean);
@@ -503,7 +523,7 @@ async function importTxtFile(file) {
   const title = (prompt("書名：", name) || "").trim();
   if (!title) return;
 
-  const text = await file.text();
+  const text = await readTextFromFile(file);
   const chapters = splitIntoChapters(text);
 
   const bookId = makeId("user");
@@ -1126,11 +1146,15 @@ function bind() {
       const f = els.fileTxt.files && els.fileTxt.files[0];
       els.fileTxt.value = "";
       if (!f) return;
+      if (!isTxtFile(f)) {
+        toast("上載失敗：請選擇 .txt 檔");
+        return;
+      }
       try {
         await importTxtFile(f);
       } catch (e) {
         console.error(e);
-        toast("上載失敗：請確認檔案為 TXT");
+        toast("上載失敗");
       }
     });
   }

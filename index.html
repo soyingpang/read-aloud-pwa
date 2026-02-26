@@ -5,7 +5,21 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>章節朗讀</title>
 
+  <!-- 必須放在所有 <link> 前：避免 GitHub Pages /repo?x=1 解析相對資源到錯誤路徑 -->
   <script>
+    (function () {
+      var p = location.pathname || "";
+      var last = (p.split("/").pop() || "");
+      var looksLikeFile = /\.[a-z0-9]+$/i.test(last); // index.html, etc.
+
+      // project pages 常見：/repo?book=... 會被當成 "檔名 repo"
+      // 這會讓 styles.css/manifest.json 解析到 /styles.css（少 /repo/）
+      if (!looksLikeFile && !p.endsWith("/")) {
+        location.replace(location.origin + p + "/" + location.search + location.hash);
+        return;
+      }
+    })();
+
     window.BUILD_ID = "2026-02-27-1";
   </script>
 
@@ -64,13 +78,14 @@
       </div>
 
       <div class="paneFooter">
-              <button id="btnUploadTxt" class="secondaryBtn" type="button">＋ 上載TXT</button>
-      <input id="fileTxt" class="hidden" type="file" accept=".txt,text/plain" />
+        <button id="btnUploadTxt" class="secondaryBtn" type="button">＋ 上載TXT</button>
+        <input id="fileTxt" class="hidden" type="file" accept=".txt,text/plain" />
 
-<div class="metaLine">
+        <div class="metaLine">
           <span class="badge">v<span id="buildId">2026-02-27-1</span></span>
           <span class="muted">通用版（手機/桌機）</span>
         </div>
+
         <button id="btnCloseLibraryBottom" class="btn w100" type="button">完成</button>
       </div>
     </aside>
@@ -171,7 +186,6 @@
           <label class="checkLine"><input id="autoNext" type="checkbox"> 章節播畢自動播放下一章</label>
           <div class="help">開啟後，當本章最後一段朗讀完畢，會自動載入並接續朗讀下一章。</div>
         </div>
-
 
         <div class="field span2">
           <label for="voice">聲線</label>
