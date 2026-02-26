@@ -5,38 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>章節朗讀</title>
 
-  <script>
-    (async () => {
-      try {
-        const r = await fetch("./build-meta.json", { cache: "no-store" });
-        const meta = await r.json();
-        window.BUILD_ID = meta.buildId || "dev";
-      } catch (e) {
-        window.BUILD_ID = "dev";
-      }
-      const v = encodeURIComponent(window.BUILD_ID);
-      const addLink = (rel, href) => {
-        const el = document.createElement("link");
-        el.rel = rel;
-        el.href = href;
-        document.head.appendChild(el);
-      };
-      addLink("manifest", `manifest.json?v=${v}`);
-      addLink("stylesheet", `styles.css?v=${v}`);
-      const s = document.createElement("script");
-      s.src = `app.js?v=${v}`;
-      s.defer = true;
-      document.head.appendChild(s);
-    })();
-  </script>
-
-
   <meta name="theme-color" content="#0b1220" />
-
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 
-  
+  <link rel="manifest" href="manifest.json" />
+  <link rel="stylesheet" href="styles.css" />
+  <script src="app.js" defer></script>
 </head>
 
 <body>
@@ -86,7 +61,7 @@
 
       <div class="paneFooter">
         <div class="metaLine">
-          <span class="badge">v<span id="buildId">2026-02-14-1</span></span>
+          <span class="badge">v<span id="buildId"></span></span>
           <span class="muted">通用版（手機/桌機）</span>
         </div>
         <button id="btnCloseLibraryBottom" class="btn w100" type="button">完成</button>
@@ -114,7 +89,6 @@
           <div class="para next" id="nextParagraph" aria-hidden="true"></div>
         </div>
 
-<<<<<<< HEAD
         <div class="playControls" aria-label="播放控制">
           <button id="btnMain" class="btnMain" type="button">播放</button>
           <div class="utilityBar" aria-label="輔助操作">
@@ -126,14 +100,6 @@
           </div>
           <div class="metaRow">
             <div class="pill" id="metrics">字數：0｜內部分段：0</div>
-=======
-        <div class="heroControls">
-          <button id="btnMain" class="btn primary big" type="button">播放</button>
-
-          <div class="row">
-            <button id="btnRestart" class="btn" type="button" disabled>從頭</button>
-            <button id="btnOpenLibrary2" class="btn ghost" type="button">選書/選章</button>
->>>>>>> 9401ed8bf9c1e7a45b2f6421a4a3d224fecf06f4
           </div>
         </div>
 
@@ -206,7 +172,6 @@
           <div class="help">開啟後，當本章最後一段朗讀完畢，會自動載入並接續朗讀下一章。</div>
         </div>
 
-
         <div class="field span2">
           <label for="voice">聲線</label>
           <select id="voice"></select>
@@ -242,7 +207,7 @@
 
     <div class="modalFooter">
       <button id="btnCopyDiag" class="btn ghost w100" type="button">複製診斷資訊</button>
-      <button id="btnDoneSettings" class="btn primary w100" type="button">完成</button
+      <button id="btnDoneSettings" class="btn primary w100" type="button">完成</button>
     </div>
   </section>
 
@@ -253,7 +218,5 @@
       你的瀏覽器已停用 JavaScript，這個頁面需要 JavaScript 才能朗讀。
     </div>
   </noscript>
-
-  <script src="app.js?v=2026-02-14-1"></script>
 </body>
 </html>
