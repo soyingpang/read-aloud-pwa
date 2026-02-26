@@ -1,4 +1,4 @@
-const BUILD_ID = window.BUILD_ID || "2026-02-14-1";
+const BUILD_ID = window.BUILD_ID || "dev";
 const $ = (id) => document.getElementById(id);
 const bust = (path) => {
   const u = new URL(path, location.href);
@@ -16,6 +16,22 @@ if ("serviceWorker" in navigator) {
     });
   });
 }
+const DIAG = (() => {
+  const max = 200;
+  const buf = [];
+  const push = (type, data) => {
+    const item = {
+      t: new Date().toISOString(),
+      type,
+      data: data || null,
+    };
+    buf.push(item);
+    if (buf.length > max) buf.splice(0, buf.length - max);
+  };
+  const snapshot = () => buf.slice();
+  return { push, snapshot };
+})();
+
 const LS = {
   theme: "reader:theme",
   font: "reader:font",
@@ -52,6 +68,7 @@ const els = {
   settingsModal: $("settingsModal"),
   btnCloseSettings: $("btnCloseSettings"),
   btnDoneSettings: $("btnDoneSettings"),
+  btnCopyDiag: $("btnCopyDiag"),
   theme: $("theme"),
   fontSize: $("fontSize"),
   sleep: $("sleep"),
@@ -68,6 +85,7 @@ const els = {
   langHint: $("langHint"),
   toast: $("toast"),
 };
+DIAG.push("boot", { buildId: BUILD_ID, href: location.href });
 let library = null;
 let currentBookMeta = null;
 let currentBookData = null;
@@ -458,6 +476,7 @@ function speakFrom(index) {
   }
   currentIndex = Math.max(0, Math.min(index, segs.length - 1));
   const token = (playToken += 1);
+  DIAG.push("play:start", { index: currentIndex, token, chapter: currentChapter?.id || null });
   window.speechSynthesis.cancel();
   isPlaying = true;
   isPaused = false;
@@ -495,12 +514,14 @@ function speakFrom(index) {
     const cleaned = sanitizeForSpeech(segs[currentIndex].text, mode);
     utter = makeUtterance(cleaned);
     utter.onend = () => {
+      DIAG.push("utter:end", { token, index: currentIndex });
       if (token !== playToken) return;
       if (!isPlaying) return;
       currentIndex += 1;
       run();
     };
     utter.onerror = () => {
+      DIAG.push("utter:error", { token, index: currentIndex });
       if (token !== playToken) return;
       if (!isPlaying) return;
       currentIndex += 1;
@@ -512,6 +533,7 @@ function speakFrom(index) {
   run();
 }
 function pause() {
+  DIAG.push("play:pause", { index: currentIndex, token: playToken });
   if (!isPlaying || isPaused) return;
   window.speechSynthesis.pause();
   isPaused = true;
@@ -521,6 +543,7 @@ function pause() {
   toast("已暫停");
 }
 function resume() {
+  DIAG.push("play:resume", { index: currentIndex, token: playToken });
   if (!isPlaying || !isPaused) return;
   requestWakeLock();
   window.speechSynthesis.resume();
@@ -596,9 +619,16 @@ async function fetchJson(path) {
   return await res.json();
 }
 async function fetchText(path) {
-  const res = await fetch(bust(path), { cache: "no-store" });
-  if (!res.ok) throw new Error(`TXT讀取失敗：${path}`);
-  return await res.text();
+  try {
+    const res = await fetch(bust(path), { cache: "no-store" });
+    if (!res.ok) throw new Error(`TXT讀取失敗：${path}`);
+    return await res.text();
+  } catch (e) {
+    DIAG.push("chapter:error", { chId: ch?.id || null, msg: String(e && e.message || e) });
+    DIAG.push("fetchText:error", { path, online: navigator.onLine });
+    if (!navigator.onLine) toast("目前離線：章節內容需要連網載入");
+    throw e;
+  }
 }
 function setPaneView(view) {
   paneView = view;
@@ -698,6 +728,7 @@ async function openBook(bookMeta) {
 }
 async function openChapter(ch, { autoplay, startIndex, restored }) {
   stop(false);
+  DIAG.push("chapter:open", { chId: ch?.id || null, autoplay: !!autoplay, startIndex: Number(startIndex || 0) });
   try {
   currentChapter = ch;
   const bookTitle = currentBookData?.title || currentBookMeta?.title || "書";
@@ -725,6 +756,7 @@ async function openChapter(ch, { autoplay, startIndex, restored }) {
     onceUserGesture(() => speakFrom(0));
   }
   } catch (e) {
+    DIAG.push("chapter:error", { chId: ch?.id || null, msg: String(e && e.message || e) });
     toast("章節讀取失敗，請重試或檢查網路");
     stop(false);
     throw e;
@@ -872,6 +904,40 @@ function bind() {
   els.btnOpenSettings.addEventListener("click", settingsOpen);
   els.btnCloseSettings.addEventListener("click", settingsClose);
   els.btnDoneSettings.addEventListener("click", settingsClose);
+  if (els.btnCopyDiag) els.btnCopyDiag.addEventListener("click", async () => {
+    const payload = {
+      buildId: BUILD_ID,
+      href: location.href,
+      ua: navigator.userAgent,
+      ts: new Date().toISOString(),
+      state: {
+        isPlaying,
+        isPaused,
+        playToken,
+        currentIndex,
+        chapterId: currentChapter?.id || null,
+        bookId: currentBookData?.id || null,
+      },
+      log: DIAG.snapshot(),
+    };
+    const text = JSON.stringify(payload, null, 2);
+    try {
+      await navigator.clipboard.writeText(text);
+      toast("診斷資訊已複製");
+    } catch (e) {
+      try {
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        ta.remove();
+        toast("診斷資訊已複製");
+      } catch (e2) {
+        toast("複製失敗：請改用手動截圖");
+      }
+    }
+  });
   els.theme.addEventListener("change", () => applyTheme(els.theme.value));
   els.fontSize.addEventListener("change", () => applyFont(els.fontSize.value));
   els.sleep.addEventListener("change", () => {

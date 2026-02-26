@@ -6,16 +6,37 @@
   <title>章節朗讀</title>
 
   <script>
-    window.BUILD_ID = "2026-02-14-1";
+    (async () => {
+      try {
+        const r = await fetch("./build-meta.json", { cache: "no-store" });
+        const meta = await r.json();
+        window.BUILD_ID = meta.buildId || "dev";
+      } catch (e) {
+        window.BUILD_ID = "dev";
+      }
+      const v = encodeURIComponent(window.BUILD_ID);
+      const addLink = (rel, href) => {
+        const el = document.createElement("link");
+        el.rel = rel;
+        el.href = href;
+        document.head.appendChild(el);
+      };
+      addLink("manifest", `manifest.json?v=${v}`);
+      addLink("stylesheet", `styles.css?v=${v}`);
+      const s = document.createElement("script");
+      s.src = `app.js?v=${v}`;
+      s.defer = true;
+      document.head.appendChild(s);
+    })();
   </script>
 
-  <link rel="manifest" href="manifest.json?v=2026-02-14-1" />
+
   <meta name="theme-color" content="#0b1220" />
 
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 
-  <link rel="stylesheet" href="styles.css?v=2026-02-14-1" />
+  
 </head>
 
 <body>
@@ -220,7 +241,8 @@
     </div>
 
     <div class="modalFooter">
-      <button id="btnDoneSettings" class="btn primary w100" type="button">完成</button>
+      <button id="btnCopyDiag" class="btn ghost w100" type="button">複製診斷資訊</button>
+      <button id="btnDoneSettings" class="btn primary w100" type="button">完成</button
     </div>
   </section>
 
