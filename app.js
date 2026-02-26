@@ -10,6 +10,10 @@ if ("serviceWorker" in navigator) {
     navigator.serviceWorker
       .register(bust("service-worker.js"))
       .catch((err) => console.warn("Service Worker 註冊失敗：", err));
+
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      toast("已更新版本，點重新整理以套用");
+    });
   });
 }
 const LS = {
@@ -73,6 +77,7 @@ let currentIndex = 0;
 let isPlaying = false;
 let isPaused = false;
 let utter = null;
+let playToken = 0;
 let paneView = "books";
 let searchQuery = "";
 let sleepEndAt = 0;
@@ -85,6 +90,19 @@ function toast(msg) {
   els.toast.classList.remove("hidden");
   clearTimeout(toast._t);
   toast._t = setTimeout(() => els.toast.classList.add("hidden"), 1600);
+}
+
+function onceUserGesture(fn) {
+  let fired = false;
+  const handler = () => {
+    if (fired) return;
+    fired = true;
+    window.removeEventListener("pointerdown", handler);
+    window.removeEventListener("touchstart", handler);
+    fn();
+  };
+  window.addEventListener("pointerdown", handler, { once: true });
+  window.addEventListener("touchstart", handler, { once: true, passive: true });
 }
 function lockBody(lock) {
   document.body.style.overflow = lock ? "hidden" : "";
@@ -439,6 +457,7 @@ function speakFrom(index) {
     return;
   }
   currentIndex = Math.max(0, Math.min(index, segs.length - 1));
+  const token = (playToken += 1);
   window.speechSynthesis.cancel();
   isPlaying = true;
   isPaused = false;
@@ -448,6 +467,7 @@ function speakFrom(index) {
     if (!ok) toast("此瀏覽器未支援保持螢幕常亮；手機待命後可能停止朗讀");
   });
   const run = () => {
+    if (token !== playToken) return;
     if (currentIndex >= segs.length) {
       isPlaying = false;
       isPaused = false;
@@ -475,11 +495,14 @@ function speakFrom(index) {
     const cleaned = sanitizeForSpeech(segs[currentIndex].text, mode);
     utter = makeUtterance(cleaned);
     utter.onend = () => {
+      if (token !== playToken) return;
       if (!isPlaying) return;
       currentIndex += 1;
       run();
     };
     utter.onerror = () => {
+      if (token !== playToken) return;
+      if (!isPlaying) return;
       currentIndex += 1;
       run();
     };
@@ -507,6 +530,7 @@ function resume() {
   toast("繼續朗讀");
 }
 function stop(showMsg = true) {
+  playToken += 1;
   isPlaying = false;
   isPaused = false;
   try {
@@ -674,6 +698,7 @@ async function openBook(bookMeta) {
 }
 async function openChapter(ch, { autoplay, startIndex, restored }) {
   stop(false);
+  try {
   currentChapter = ch;
   const bookTitle = currentBookData?.title || currentBookMeta?.title || "書";
   const chTitle = ch.title || ch.id;
@@ -697,9 +722,12 @@ async function openChapter(ch, { autoplay, startIndex, restored }) {
   }
   if (restored) toast("已恢復上次進度（可按續播）");
   if (autoplay) {
-    const once = () => speakFrom(0);
-    window.addEventListener("pointerdown", once, { once: true });
-    window.addEventListener("touchstart", once, { once: true, passive: true });
+    onceUserGesture(() => speakFrom(0));
+  }
+  } catch (e) {
+    toast("章節讀取失敗，請重試或檢查網路");
+    stop(false);
+    throw e;
   }
 }
 async function openNextChapterOnly() {
@@ -909,9 +937,7 @@ function bind() {
       wasPlayingBeforeHidden = false;
       if (!window.speechSynthesis?.speaking) {
         toast("已回到前景：點一下繼續朗讀");
-        const once = () => speakFrom(currentIndex);
-        window.addEventListener("pointerdown", once, { once: true });
-        window.addEventListener("touchstart", once, { once: true, passive: true });
+        onceUserGesture(() => speakFrom(currentIndex));
       }
     }
   });
