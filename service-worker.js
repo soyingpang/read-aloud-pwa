@@ -1,4 +1,4 @@
-/* service-worker.js (對應 v=2026-02-14-1)
+/* service-worker.js (對應 v=2026-02-27-1)
    目的：只快取靜態檔（index/css/js/manifest/圖示）
    不快取 texts/**（避免章節更新後用戶仍看到舊內容）
 
@@ -7,7 +7,7 @@
    2) CACHE_NAME 與 manifest/start_url 版本不同步，可能造成更新不生效或錯誤的離線資源。
 */
 
-const BUILD_ID = "2026-02-14-1";
+const BUILD_ID = "2026-02-27-1";
 const CACHE_NAME = `read-aloud-static-${BUILD_ID}`;
 
 // 同時快取「有 query」與「無 query」版本，避免不同入口造成 miss

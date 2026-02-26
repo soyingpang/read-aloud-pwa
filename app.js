@@ -1,8 +1,32 @@
-const BUILD_ID = window.BUILD_ID || "2026-02-14-1";
+const BUILD_ID = window.BUILD_ID || "2026-02-27-1";
 const $ = (id) => document.getElementById(id);
 
+// --- GitHub Pages / project pages 防呆：確保路徑是資料夾結尾 ---
+// 避免 https://user.github.io/repo?x=1 造成相對路徑解析成 /texts/...（少了 /repo/）
+(() => {
+  const p = location.pathname;
+  const last = p.split("/").pop() || "";
+  const looksLikeFile = /\.[a-z0-9]+$/i.test(last); // e.g. index.html
+  if (!looksLikeFile && !p.endsWith("/")) {
+    location.replace(location.origin + p + "/" + location.search + location.hash);
+  }
+})();
+
+// 一律以「目錄 base」解析相對資源，避免 query/hash 或缺尾 / 影響 new URL()
+const baseDir = (() => {
+  const u = new URL(location.href);
+  u.search = "";
+  u.hash = "";
+
+  const last = u.pathname.split("/").pop() || "";
+  const looksLikeFile = /\.[a-z0-9]+$/i.test(last);
+  if (!looksLikeFile && !u.pathname.endsWith("/")) u.pathname += "/";
+  if (looksLikeFile) u.pathname = u.pathname.replace(/[^/]*$/, "");
+  return u;
+})();
+
 const bust = (path) => {
-  const u = new URL(path, location.href);
+  const u = new URL(path, baseDir);
   u.searchParams.set("v", BUILD_ID);
   return u.toString();
 };
@@ -908,7 +932,7 @@ async function openChapter(ch, { autoplay, startIndex, restored }) {
   saveProgress();
 
   if (currentBookData?.id) {
-    const url = new URL(location.href);
+    const url = new URL("./", baseDir);
     url.searchParams.set("v", BUILD_ID);
     url.searchParams.set("book", currentBookData.id);
     url.searchParams.set("ch", ch.id);
@@ -978,7 +1002,7 @@ async function copyShareFor(bookId, chId) {
     return;
   }
 
-  const url = new URL(location.href);
+  const url = new URL("./", baseDir);
   url.searchParams.set("v", BUILD_ID);
   url.searchParams.set("book", bookId);
   url.searchParams.set("ch", chId);
