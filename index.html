@@ -5,34 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>章節朗讀</title>
 
-  <script>
-    (async () => {
-      try {
-        const r = await fetch("./build-meta.json", { cache: "no-store" });
-        const meta = await r.json();
-        window.BUILD_ID = meta.buildId || "dev";
-      } catch (e) {
-        window.BUILD_ID = "dev";
-      }
-      const v = encodeURIComponent(window.BUILD_ID);
-      const addLink = (rel, href) => {
-        const el = document.createElement("link");
-        el.rel = rel;
-        el.href = href;
-        document.head.appendChild(el);
-      };
-      addLink("manifest", `manifest.json?v=${v}`);
-      addLink("stylesheet", `styles.css?v=${v}`);
-      const s = document.createElement("script");
-      s.src = `app.js?v=${v}`;
-      s.defer = true;
-      document.head.appendChild(s);
-    })();
-  </script>
-
   <meta name="theme-color" content="#0b1220" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+  <link rel="manifest" href="manifest.json" />
+  <link rel="stylesheet" href="styles.css" />
+  <script src="app.js" defer></script>
 </head>
 
 <body>
