@@ -7,6 +7,17 @@ const bust = (path) => {
   return u.toString();
 };
 
+
+// PWA Service Worker（離線快取）
+// 注意：必須在 HTTPS / localhost 才能運作；GitHub Pages 可用。
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker
+      .register(bust("service-worker.js"))
+      .catch((err) => console.warn("Service Worker 註冊失敗：", err));
+  });
+}
+
 const LS = {
   theme: "reader:theme",
   font: "reader:font",
@@ -34,7 +45,6 @@ const els = {
   heroChapter: $("heroChapter"),
   btnMain: $("btnMain"),
   btnRestart: $("btnRestart"),
-  btnStop: $("btnStop"),
   btnOpenLibrary2: $("btnOpenLibrary2"),
   metrics: $("metrics"),
   progress: $("progress"),
@@ -44,6 +54,14 @@ const els = {
   btnPlayCursor: $("btnPlayCursor"),
   btnClear: $("btnClear"),
   where: $("where"),
+
+    prevParagraph: $("prevParagraph"),
+  currentParagraph: $("currentParagraph"),
+  nextParagraph: $("nextParagraph"),
+  progressInfo: $("progressInfo"),
+  btnBack10: $("btnBack10"),
+  btnForward10: $("btnForward10"),
+  btnSpeed: $("btnSpeed"),
 
   overlay: $("overlay"),
 
@@ -55,6 +73,7 @@ const els = {
   sleep: $("sleep"),
   sleepHint: $("sleepHint"),
   punctMode: $("punctMode"),
+  autoNext: $("autoNext"),
   voice: $("voice"),
   rate: $("rate"),
   rateVal: $("rateVal"),
@@ -203,8 +222,15 @@ function ensureDefaultTTSSettings() {
   const s = readTTSSettings();
   if (s) return;
   try {
-    localStorage.setItem(LS.tts, JSON.stringify({ punctMode: "A" }));
+    localStorage.setItem(LS.tts, JSON.stringify({ punctMode: "A", autoNext: false }));
   } catch {}
+}
+
+
+function getAutoNextChapter() {
+  if (els.autoNext) return !!els.autoNext.checked;
+  const s = readTTSSettings();
+  return !!s?.autoNext;
 }
 
 function getPunctMode() {
@@ -358,8 +384,33 @@ function updateStatusUI() {
     els.where.textContent = `位置：${s.start}–${s.end}`;
   }
 
-  els.btnStop.disabled = !(isPlaying || isPaused);
   els.btnRestart.disabled = !currentChapter || !segs.length;
+
+  // V2：更新主畫面段落顯示（前一段／當前段／下一段）
+  if (els.currentParagraph) {
+    if (!segs.length) {
+      if (els.prevParagraph) els.prevParagraph.textContent = "";
+      els.currentParagraph.textContent = "準備播放…";
+      if (els.nextParagraph) els.nextParagraph.textContent = "";
+    } else {
+      const i = Math.max(0, Math.min(currentIndex, segs.length - 1));
+      const prev = segs[i - 1]?.text || "";
+      const curr = segs[i]?.text || "";
+      const next = segs[i + 1]?.text || "";
+      if (els.prevParagraph) els.prevParagraph.textContent = prev;
+      els.currentParagraph.textContent = curr || "—";
+      if (els.nextParagraph) els.nextParagraph.textContent = next;
+    }
+  }
+
+  // V2：進度百分比（以段落數計）
+  if (els.progressInfo) {
+    const denom = Math.max(1, segs.length || 1);
+    const num = Math.min(currentIndex + (isPlaying ? 1 : 0), segs.length || 0);
+    const pct = Math.round((num / denom) * 100);
+    els.progressInfo.textContent = `${pct}%`;
+  }
+
 
   if (!segs.length) els.btnMain.textContent = "播放";
   else if (!isPlaying && !isPaused) els.btnMain.textContent = currentIndex > 0 && currentIndex < segs.length ? "續播" : "播放";
@@ -407,6 +458,7 @@ function saveTTSSettings() {
     langHint: els.langHint.value || "",
     sleep: String(els.sleep.value || "0"),
     punctMode: els.punctMode ? els.punctMode.value || "A" : "A",
+    autoNext: !!(els.autoNext && els.autoNext.checked),
   };
   try {
     localStorage.setItem(LS.tts, JSON.stringify(payload));
@@ -424,6 +476,7 @@ function applyTTSSettingsFromStorage() {
   if (typeof s.langHint === "string") els.langHint.value = s.langHint;
   if (typeof s.sleep === "string") els.sleep.value = s.sleep;
   if (els.punctMode && typeof s.punctMode === "string") els.punctMode.value = s.punctMode;
+  if (els.autoNext && typeof s.autoNext === "boolean") els.autoNext.checked = s.autoNext;
 
   els.rateVal.textContent = Number(els.rate.value).toFixed(1);
   els.volVal.textContent = Number(els.vol.value).toFixed(2);
@@ -500,10 +553,25 @@ function speakFrom(index) {
     if (currentIndex >= segs.length) {
       isPlaying = false;
       isPaused = false;
+      releaseWakeLock();
+      updateStatusUI();
+
+      // 章節播畢：可選擇自動接續下一章
+      if (getAutoNextChapter()) {
+        openNextChapterAndAutoplay().then((ok) => {
+          if (!ok) {
+            currentIndex = 0;
+            saveProgress();
+            updateStatusUI();
+            toast("已朗讀完畢");
+          }
+        });
+        return;
+      }
+
       currentIndex = 0;
       saveProgress();
       updateStatusUI();
-      releaseWakeLock();
       toast("已朗讀完畢");
       return;
     }
@@ -553,11 +621,25 @@ function resume() {
 }
 
 function stop(showMsg = true) {
+  // IMPORTANT: Some browsers may synchronously fire `onend` during `cancel()`.
+  // If `isPlaying` is still true at that moment, the onend handler can advance
+  // to the next segment and keep reading. So we flip flags FIRST, then cancel.
+  isPlaying = false;
+  isPaused = false;
+
+  // Detach handlers to avoid re-entrancy.
+  try {
+    if (utter) {
+      utter.onend = null;
+      utter.onerror = null;
+      utter.onboundary = null;
+    }
+  } catch {}
+
   try {
     window.speechSynthesis.cancel();
   } catch {}
-  isPlaying = false;
-  isPaused = false;
+
   utter = null;
   saveProgress();
   updateStatusUI();
@@ -782,6 +864,26 @@ async function openChapter(ch, { autoplay, startIndex, restored }) {
     window.addEventListener("pointerdown", once, { once: true });
     window.addEventListener("touchstart", once, { once: true, passive: true });
   }
+
+async function openNextChapterAndAutoplay() {
+  try {
+    if (!currentBookData?.chapters || !currentChapter?.id) return false;
+    const chapters = currentBookData.chapters;
+    const idx = chapters.findIndex((c) => c.id === currentChapter.id);
+    if (idx < 0) return false;
+    const next = chapters[idx + 1];
+    if (!next) return false;
+
+    await openChapter(next, { autoplay: false, startIndex: 0, restored: false });
+    // 章節切換後直接接續朗讀（不再要求手動點擊）
+    speakFrom(0);
+    return true;
+  } catch (e) {
+    console.warn("自動下一章失敗：", e);
+    return false;
+  }
+}
+
 }
 
 async function copyShareFor(bookId, chId) {
@@ -923,8 +1025,16 @@ function bind() {
     });
   }
 
+  if (els.autoNext) {
+    els.autoNext.addEventListener("change", () => {
+      saveTTSSettings();
+      toast(els.autoNext.checked ? "已開啟：章節播畢自動下一章" : "已關閉：章節播畢自動下一章");
+    });
+  }
+
   els.rate.addEventListener("input", () => {
     els.rateVal.textContent = Number(els.rate.value).toFixed(1);
+    if (els.btnSpeed) els.btnSpeed.textContent = Number(els.rate.value).toFixed(1) + "x";
     saveTTSSettings();
   });
   els.vol.addEventListener("input", () => {
@@ -943,8 +1053,49 @@ function bind() {
   els.voice.addEventListener("change", () => saveTTSSettings());
 
   els.btnMain.addEventListener("click", onMainPressed);
-  els.btnStop.addEventListener("click", () => stop(true));
   els.btnRestart.addEventListener("click", restartFromHead);
+
+  if (els.btnBack10) els.btnBack10.addEventListener("click", () => {
+    if (!segs.length) resetSegmentsToText();
+    if (!segs.length) return;
+    const nextIndex = Math.max(0, currentIndex - 1);
+    const shouldAuto = isPlaying && !isPaused;
+    currentIndex = nextIndex;
+    saveProgress();
+    updateStatusUI();
+    if (shouldAuto) speakFrom(currentIndex);
+  });
+
+  if (els.btnForward10) els.btnForward10.addEventListener("click", () => {
+    if (!segs.length) resetSegmentsToText();
+    if (!segs.length) return;
+    const nextIndex = Math.min(segs.length - 1, currentIndex + 1);
+    const shouldAuto = isPlaying && !isPaused;
+    currentIndex = nextIndex;
+    saveProgress();
+    updateStatusUI();
+    if (shouldAuto) speakFrom(currentIndex);
+  });
+
+  if (els.btnSpeed) {
+    const cycle = [1.0, 1.2, 1.5];
+    const syncLabel = () => {
+      const r = Number(els.rate?.value || 1);
+      els.btnSpeed.textContent = (Math.round(r * 10) / 10) + "x";
+    };
+    syncLabel();
+    els.btnSpeed.addEventListener("click", () => {
+      const cur = Number(els.rate?.value || 1);
+      const idx = cycle.findIndex((v) => Math.abs(v - cur) < 0.01);
+      const next = cycle[(idx + 1 + cycle.length) % cycle.length];
+      if (els.rate) els.rate.value = String(next);
+      if (els.rateVal) els.rateVal.textContent = String(next);
+      saveTTSSettings();
+      syncLabel();
+      // 若正在播放，立刻以新速度接續（從當前段重新開始）
+      if (isPlaying && !isPaused) speakFrom(currentIndex);
+    });
+  }
 
   els.btnPlayCursor.addEventListener("click", playFromCursor);
   els.btnClear.addEventListener("click", () => {
