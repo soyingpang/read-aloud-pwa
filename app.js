@@ -31,6 +31,8 @@ const els = {
   pane: $("libraryPane"),
   btnCloseLibrary: $("btnCloseLibrary"),
   btnCloseLibraryBottom: $("btnCloseLibraryBottom"),
+  btnUploadTxt: $("btnUploadTxt"),
+  fileTxt: $("fileTxt"),
   search: $("search"),
   tabBooks: $("tabBooks"),
   tabChapters: $("tabChapters"),
@@ -76,6 +78,7 @@ const els = {
 };
 
 let library = null;
+let userLibrary = { books: [] };
 let currentBookMeta = null;
 let currentBookData = null;
 let currentChapter = null;
@@ -409,6 +412,91 @@ function readProgress() {
   } catch {
     return null;
   }
+
+function loadUserLibrary() {
+  try {
+    const raw = localStorage.getItem(LS.userBooks);
+    if (!raw) return { books: [] };
+    const obj = JSON.parse(raw);
+    if (!obj || !Array.isArray(obj.books)) return { books: [] };
+    return { books: obj.books };
+  } catch {
+    return { books: [] };
+  }
+}
+
+function saveUserLibrary() {
+  try {
+    localStorage.setItem(LS.userBooks, JSON.stringify({ books: userLibrary.books || [] }));
+  } catch {
+    toast("無法儲存書籍：儲存空間可能不足");
+  }
+}
+
+function makeId(prefix) {
+  const t = Date.now().toString(36);
+  const r = Math.random().toString(36).slice(2, 8);
+  return `${prefix}-${t}-${r}`;
+}
+
+function splitIntoChapters(text) {
+  const raw = String(text || "").replace(/\r\n/g, "\n");
+  const paras = raw.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean);
+  const chapters = [];
+  const target = 6500;
+  let buf = [];
+  let len = 0;
+  let n = 1;
+
+  const flush = () => {
+    const t = buf.join("\n\n").trim();
+    if (!t) return;
+    const id = `ch-${String(n).padStart(2, "0")}`;
+    const title = `第${n}章`;
+    chapters.push({ id, title, text: t });
+    n += 1;
+    buf = [];
+    len = 0;
+  };
+
+  for (const p of paras) {
+    const addLen = p.length + 2;
+    if (len > 0 && len + addLen > target) flush();
+    buf.push(p);
+    len += addLen;
+  }
+  flush();
+
+  if (!chapters.length && raw.trim()) {
+    chapters.push({ id: "ch-01", title: "第1章", text: raw.trim() });
+  }
+
+  return chapters;
+}
+
+async function importTxtFile(file) {
+  const name = (file && file.name) ? file.name.replace(/\.txt$/i, "") : "未命名";
+  const title = (prompt("書名：", name) || "").trim();
+  if (!title) return;
+
+  const text = await file.text();
+  const chapters = splitIntoChapters(text);
+
+  const bookId = makeId("user");
+  const book = {
+    id: bookId,
+    title,
+    isUser: true,
+    createdAt: Date.now(),
+    chapters
+  };
+
+  userLibrary.books.unshift(book);
+  saveUserLibrary();
+  renderBooks([...(library?.books || []), ...(userLibrary.books || [])]);
+  toast(`已加入書架：${title}`);
+}
+
 }
 
 function saveTTSSettings() {
@@ -705,7 +793,7 @@ function renderBooks(books) {
 
     const main = document.createElement("div");
     main.className = "itemMain";
-    main.innerHTML = `<div class="itemTitle">${escapeHtml(b.title || b.id)}</div><div class="itemSub">點選以載入章節</div>`;
+    main.innerHTML = `<div class="itemTitle">${escapeHtml(b.title || b.id)}${b.isUser ? " <span class=\"tag\">我的</span>" : ""}</div><div class="itemSub">點選以載入章節</div>`;
     main.addEventListener("click", async () => {
       await openBook(b);
       setPaneView("chapters");
@@ -740,6 +828,11 @@ function renderChapters(chapters) {
     btn.type = "button";
     btn.className = "itemBtn";
     btn.textContent = "連結";
+    if (currentBookMeta?.isUser) {
+      btn.textContent = "";
+      btn.disabled = true;
+      btn.style.visibility = "hidden";
+    }
     btn.addEventListener("click", async (e) => {
       e.stopPropagation();
       await copyShareFor(currentBookData?.id, ch.id);
@@ -761,13 +854,23 @@ function renderChapters(chapters) {
 
 async function loadLibrary() {
   library = await fetchJson("texts/library.json");
-  renderBooks(library.books || []);
+  userLibrary = loadUserLibrary();
+  renderBooks([...(library.books || []), ...(userLibrary.books || [])]);
 }
 
 async function openBook(bookMeta) {
   stop(false);
   currentBookMeta = bookMeta;
-  currentBookData = await fetchJson(bookMeta.manifest);
+
+  if (bookMeta && bookMeta.isUser) {
+    currentBookData = {
+      id: bookMeta.id,
+      title: bookMeta.title || bookMeta.id,
+      chapters: bookMeta.chapters || []
+    };
+  } else {
+    currentBookData = await fetchJson(bookMeta.manifest);
+  }
 
   els.tabChapters.disabled = false;
   els.tabChapters.setAttribute("aria-disabled", "false");
@@ -795,7 +898,7 @@ async function openChapter(ch, { autoplay, startIndex, restored }) {
   els.heroBook.textContent = bookTitle;
   els.heroChapter.textContent = chTitle;
 
-  const text = await fetchText(ch.file);
+  const text = (typeof ch.text === "string") ? ch.text : await fetchText(ch.file);
   els.text.value = text;
 
   segs = [];
@@ -890,6 +993,10 @@ async function copyShareFor(bookId, chId) {
 }
 
 async function copyCurrentShare() {
+  if (currentBookMeta?.isUser) {
+    toast("使用者書籍暫不支援分享連結");
+    return;
+  }
   if (!currentBookData?.id || !currentChapter?.id) {
     toast("請先選章節，再分享連結");
     if (isMobile()) paneOpen();
@@ -988,6 +1095,21 @@ function bind() {
   });
 
   els.btnShare.addEventListener("click", copyCurrentShare);
+
+  if (els.btnUploadTxt && els.fileTxt) {
+    els.btnUploadTxt.addEventListener("click", () => els.fileTxt.click());
+    els.fileTxt.addEventListener("change", async () => {
+      const f = els.fileTxt.files && els.fileTxt.files[0];
+      els.fileTxt.value = "";
+      if (!f) return;
+      try {
+        await importTxtFile(f);
+      } catch (e) {
+        console.error(e);
+        toast("上載失敗：請確認檔案為 TXT");
+      }
+    });
+  }
 
   els.btnOpenSettings.addEventListener("click", settingsOpen);
   els.btnCloseSettings.addEventListener("click", settingsClose);
