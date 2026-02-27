@@ -1,4 +1,4 @@
-const BUILD_ID = window.BUILD_ID || "2026-02-27-1";
+const BUILD_ID = window.BUILD_ID || "2026-02-27-2";
 const $ = (id) => document.getElementById(id);
 (() => {
   const p = location.pathname;

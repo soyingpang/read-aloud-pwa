@@ -14,7 +14,6 @@ const STATIC_ASSETS = [
 ];
 
 self.addEventListener("install", (event) => {
-  self.skipWaiting();
   event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(STATIC_ASSETS)));
 });
 
@@ -33,11 +32,27 @@ self.addEventListener("fetch", (event) => {
 
   const url = new URL(event.request.url);
 
-  if (url.pathname.includes("/texts/")) return;
+  const isTexts = url.pathname.includes("/texts/");
 
   event.respondWith(
     (async () => {
       const cache = await caches.open(CACHE_NAME);
+
+      // texts: cache-first (keeps library/chapters available across network hiccups and offline)
+      if (isTexts) {
+        const cached =
+          (await cache.match(event.request)) ||
+          (await cache.match(event.request, { ignoreSearch: true }));
+        if (cached) return cached;
+
+        try {
+          const res = await fetch(event.request);
+          if (res && res.ok) cache.put(event.request, res.clone());
+          return res;
+        } catch (e) {
+          return new Response("offline and not cached", { status: 504 });
+        }
+      }
 
       let cached = await cache.match(event.request);
       if (!cached) cached = await cache.match(event.request, { ignoreSearch: true });
