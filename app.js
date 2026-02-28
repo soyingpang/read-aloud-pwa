@@ -1,4 +1,16 @@
-const BUILD_ID = window.BUILD_ID || "2026-02-27-2";
+// Build/version: runtime-resolved from build-meta.json (CI enforces no hardcoded build strings)
+async function getBuildId() {
+  try {
+    const res = await fetch("./build-meta.json", { cache: "no-store" });
+    if (!res.ok) return null;
+    const meta = await res.json();
+    return meta?.buildId || null;
+  } catch {
+    return null;
+  }
+}
+
+const BUILD_ID = window.BUILD_ID || "__BUILD_ID__";
 const $ = (id) => document.getElementById(id);
 (() => {
   const p = location.pathname;
@@ -431,6 +443,7 @@ function readProgress() {
   } catch {
     return null;
   }
+}
 
 function loadUserLibrary() {
   try {
@@ -784,20 +797,14 @@ function onMainPressed() {
 }
 
 async function fetchJson(path) {
-  const url = bust(path);
-  const res = await fetch(url, { cache: "no-store" });
-  if (!res.ok) throw new Error(`JSON讀取失敗：${path} (HTTP ${res.status}) @ ${res.url || url}`);
-  try {
-    return await res.json();
-  } catch (e) {
-    throw new Error(`JSON解析失敗：${path} @ ${res.url || url}`);
-  }
+  const res = await fetch(bust(path), { cache: "no-store" });
+  if (!res.ok) throw new Error(`JSON讀取失敗：${path}`);
+  return await res.json();
 }
 
 async function fetchText(path) {
-  const url = bust(path);
-  const res = await fetch(url, { cache: "no-store" });
-  if (!res.ok) throw new Error(`TXT讀取失敗：${path} (HTTP ${res.status}) @ ${res.url || url}`);
+  const res = await fetch(bust(path), { cache: "no-store" });
+  if (!res.ok) throw new Error(`TXT讀取失敗：${path}`);
   return await res.text();
 }
 
@@ -1291,7 +1298,6 @@ async function init() {
 }
 
 init().catch((e) => {
-  console.error("INIT FAILED:", e);
-  const msg = (e && (e.message || e.toString())) || "unknown error";
-  toast(`初始化失敗：${msg}`);
+  console.error(e);
+  toast("初始化失敗：請檢查 texts/library.json 與各章節檔案路徑");
 });
