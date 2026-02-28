@@ -554,7 +554,6 @@ async function importTxtFile(file) {
   toast(`已加入書架：${title}`);
 }
 
-}
 
 function saveTTSSettings() {
   const payload = {
