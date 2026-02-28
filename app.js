@@ -1,17 +1,19 @@
-// Build/version: runtime-resolved from build-meta.json (CI enforces no hardcoded build strings)
-async function getBuildId() {
+let BUILD_ID = "";
+
+async function resolveBuildId() {
   try {
     const res = await fetch("./build-meta.json", { cache: "no-store" });
-    if (!res.ok) return null;
+    if (!res.ok) return "";
     const meta = await res.json();
-    return meta?.buildId || null;
+    const id = String(meta?.buildId || meta?.version || "").trim();
+    return id;
   } catch {
-    return null;
+    return "";
   }
 }
 
-const BUILD_ID = window.BUILD_ID || "__BUILD_ID__";
 const $ = (id) => document.getElementById(id);
+
 (() => {
   const p = location.pathname;
   const last = p.split("/").pop() || "";
@@ -20,11 +22,11 @@ const $ = (id) => document.getElementById(id);
     location.replace(location.origin + p + "/" + location.search + location.hash);
   }
 })();
+
 const baseDir = (() => {
   const u = new URL(location.href);
   u.search = "";
   u.hash = "";
-
   const last = u.pathname.split("/").pop() || "";
   const looksLikeFile = /\.[a-z0-9]+$/i.test(last);
   if (!looksLikeFile && !u.pathname.endsWith("/")) u.pathname += "/";
@@ -32,17 +34,16 @@ const baseDir = (() => {
   return u;
 })();
 
-const bust = (path) => {
+function bust(path) {
   const u = new URL(path, baseDir);
-  u.searchParams.set("v", BUILD_ID);
+  u.searchParams.set("v", BUILD_ID || String(Date.now()));
   return u.toString();
-};
+}
 
-if ("serviceWorker" in navigator) {
+function registerSW() {
+  if (!("serviceWorker" in navigator)) return;
   window.addEventListener("load", () => {
-    navigator.serviceWorker
-      .register(bust("service-worker.js"))
-      .catch((err) => console.warn("Service Worker 註冊失敗：", err));
+    navigator.serviceWorker.register(bust("service-worker.js")).catch((err) => console.warn("Service Worker 註冊失敗：", err));
   });
 }
 
@@ -51,6 +52,7 @@ const LS = {
   font: "reader:font",
   last: "reader:lastProgress",
   tts: "reader:ttsSettings",
+  userBooks: "reader:userBooks",
 };
 
 const els = {
@@ -211,11 +213,7 @@ function applyFont(value) {
 function sanitizeForSpeech(input, mode = "A") {
   const t = String(input || "");
   if (mode === "B") {
-    return t
-      .replace(/[\p{P}\p{S}]+/gu, " ")
-      .replace(/[ \t]+/g, " ")
-      .replace(/\n{3,}/g, "\n\n")
-      .trim();
+    return t.replace(/[\p{P}\p{S}]+/gu, " ").replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n").trim();
   }
   let out = t;
   out = out.replace(/[“”"‘’'「」『』《》〈〉【】\[\]（）(){}]/g, " ");
@@ -498,7 +496,10 @@ function isTxtFile(file) {
 
 function splitIntoChapters(text) {
   const raw = String(text || "").replace(/\r\n/g, "\n");
-  const paras = raw.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean);
+  const paras = raw
+    .split(/\n{2,}/)
+    .map((p) => p.trim())
+    .filter(Boolean);
   const chapters = [];
   const target = 6500;
   let buf = [];
@@ -532,7 +533,7 @@ function splitIntoChapters(text) {
 }
 
 async function importTxtFile(file) {
-  const name = (file && file.name) ? file.name.replace(/\.txt$/i, "") : "未命名";
+  const name = file && file.name ? file.name.replace(/\.txt$/i, "") : "未命名";
   const title = (prompt("書名：", name) || "").trim();
   if (!title) return;
 
@@ -545,7 +546,7 @@ async function importTxtFile(file) {
     title,
     isUser: true,
     createdAt: Date.now(),
-    chapters
+    chapters,
   };
 
   userLibrary.books.unshift(book);
@@ -553,7 +554,6 @@ async function importTxtFile(file) {
   renderBooks([...(library?.books || []), ...(userLibrary.books || [])]);
   toast(`已加入書架：${title}`);
 }
-
 
 function saveTTSSettings() {
   const payload = {
@@ -726,7 +726,6 @@ function resume() {
 }
 
 function stop(showMsg = true) {
-
   isPlaying = false;
   isPaused = false;
 
@@ -849,7 +848,7 @@ function renderBooks(books) {
 
     const main = document.createElement("div");
     main.className = "itemMain";
-    main.innerHTML = `<div class="itemTitle">${escapeHtml(b.title || b.id)}${b.isUser ? " <span class=\"tag\">我的</span>" : ""}</div><div class="itemSub">點選以載入章節</div>`;
+    main.innerHTML = `<div class="itemTitle">${escapeHtml(b.title || b.id)}${b.isUser ? ' <span class="tag">我的</span>' : ""}</div><div class="itemSub">點選以載入章節</div>`;
     main.addEventListener("click", async () => {
       await openBook(b);
       setPaneView("chapters");
@@ -922,7 +921,7 @@ async function openBook(bookMeta) {
     currentBookData = {
       id: bookMeta.id,
       title: bookMeta.title || bookMeta.id,
-      chapters: bookMeta.chapters || []
+      chapters: bookMeta.chapters || [],
     };
   } else {
     currentBookData = await fetchJson(bookMeta.manifest);
@@ -954,7 +953,7 @@ async function openChapter(ch, { autoplay, startIndex, restored }) {
   els.heroBook.textContent = bookTitle;
   els.heroChapter.textContent = chTitle;
 
-  const text = (typeof ch.text === "string") ? ch.text : await fetchText(ch.file);
+  const text = typeof ch.text === "string" ? ch.text : await fetchText(ch.file);
   els.text.value = text;
 
   segs = [];
@@ -965,7 +964,8 @@ async function openChapter(ch, { autoplay, startIndex, restored }) {
 
   if (currentBookData?.id) {
     const url = new URL("./", baseDir);
-    url.searchParams.set("v", BUILD_ID);
+    if (BUILD_ID) url.searchParams.set("v", BUILD_ID);
+    else url.searchParams.delete("v");
     url.searchParams.set("book", currentBookData.id);
     url.searchParams.set("ch", ch.id);
     if (autoplay) url.searchParams.set("autoplay", "1");
@@ -1035,7 +1035,8 @@ async function copyShareFor(bookId, chId) {
   }
 
   const url = new URL("./", baseDir);
-  url.searchParams.set("v", BUILD_ID);
+  if (BUILD_ID) url.searchParams.set("v", BUILD_ID);
+  else url.searchParams.delete("v");
   url.searchParams.set("book", bookId);
   url.searchParams.set("ch", chId);
   url.searchParams.set("autoplay", "1");
@@ -1107,7 +1108,7 @@ async function restoreLastIfAny() {
 }
 
 function bind() {
-  if (els.buildId) els.buildId.textContent = BUILD_ID;
+  if (els.buildId) els.buildId.textContent = BUILD_ID || "dev";
 
   els.btnOpenLibrary.addEventListener("click", paneToggle);
   els.btnOpenLibrary2.addEventListener("click", () => (isMobile() ? paneOpen() : toast("書庫在左側")));
@@ -1166,7 +1167,7 @@ function bind() {
         await importTxtFile(f);
       } catch (e) {
         console.error(e);
-        toast("上載失敗");
+        toast(`上載失敗：${e?.message || e}`);
       }
     });
   }
@@ -1293,10 +1294,16 @@ async function init() {
   if (!handled) await restoreLastIfAny();
 
   updateStatusUI();
-  toast(`已載入 v${BUILD_ID}（標點：${getPunctMode()}）`);
+  toast(`已載入 v${BUILD_ID || "dev"}（標點：${getPunctMode()}）`);
 }
 
-init().catch((e) => {
+async function bootstrap() {
+  BUILD_ID = await resolveBuildId();
+  registerSW();
+  await init();
+}
+
+bootstrap().catch((e) => {
   console.error(e);
-  toast("初始化失敗：請檢查 texts/library.json 與各章節檔案路徑");
+  toast(`初始化失敗：${e?.message || e}`);
 });
